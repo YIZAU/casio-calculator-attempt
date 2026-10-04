@@ -335,6 +335,11 @@ class FormulaList:
         expression += '|'
         expression += "".join(node.to_str() for node in self.nodes[self.index:])
         print('>> ' + expression)
+        # ------------------------------------------------------------------------------------
+        displayer = getattr(self.calculator, "displayer", None)
+        if displayer is not None:
+            displayer.render()
+        # ------------------------------------------------------------------------------------
 
 
 class History:
@@ -478,6 +483,9 @@ class Controller:
 
     def clear(self):
         self.formulas.clear()
+        # ------------------------------------------------------------------------------------
+        self.formulas.display_in_cmd()
+        # ------------------------------------------------------------------------------------
 
     def delete(self):
         self.formulas.delete()

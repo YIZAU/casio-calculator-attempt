@@ -60,7 +60,7 @@ class UI:
 
         self.states_bar = tk.Frame(
             self.L1,
-            width=480,
+            width=360,
             height=10,
             bg='#d5e3d4',
             highlightthickness=0
@@ -76,7 +76,7 @@ class UI:
 
         self.canvas = tk.Canvas(
             self.L1,
-            width=480,
+            width=360,
             height=130,
             # bg = 'red',
             bg='#d5e3d4',

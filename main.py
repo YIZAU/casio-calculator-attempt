@@ -21,11 +21,9 @@ class Calculator:
         self.ui.initialize()
 
         self.formulas = FormulaList(self)
+        self.displayer = Displayer(self.ui.canvas, self.formulas)  # ← 提前
         self.controller = Controller(self, self.formulas)
-
         self.engine = Engine(self)
-
-        self.displayer = Displayer(self.ui.canvas, self.formulas)
 
     def handle_input(self, key_name: str):
         if self.settings.running:
@@ -83,6 +81,9 @@ class Calculator:
             self.controller.save_history(expression)
 
         self.controller.clear()
+        # ------------------------------------------------------------------------------------
+        self.displayer.render(result=(error if error else formulas))
+        # ------------------------------------------------------------------------------------
 
     def restart(self):
         self._turn_off_shift_and_alpha()

@@ -214,7 +214,7 @@ class VariableNode(Node):
     def __init__(self, name: str):
         self.name = name
 
-    def simplify(self, env: dict | None = None):
+    def simplify(self, env: dict | None = None) -> Node:
         if self.name == "π":
             return PiNode()
         if self.name == "e":
@@ -223,7 +223,12 @@ class VariableNode(Node):
             return ImaginaryNode()
 
         if env and self.name in env.keys():
-            return env[self.name]
+            unknown_variable = env.get("unknown", None)
+            if unknown_variable is None:
+                return env[self.name]
+            else:
+                return self if unknown_variable == self.name else env[self.name]
+
         raise NameError(f"Undefined variable: {self.name}")
 
     def evaluate(self, env=None):
@@ -307,22 +312,54 @@ class BinaryOpNode(Node):
 
 
 class RootNode(Node):
-    __slots__ = ("degree", "expression")
+    __slots__ = ("degree", "radicand")
+
+    # 超过此值不再做因子提取（完全 n 次方判定仍然会做一次）
+    _MAX_RADICAND_FOR_FACTORING = 10 ** 10
 
     def __init__(self, degree: Node, expression: Node):
         self.degree = degree
-        self.expression = expression
+        self.radicand = expression
 
     def simplify(self, env=None):
+        env = env or {}
         d = self.degree.simplify(env)
-        e = self.expression.simplify(env)
-        if d is self.degree and e is self.expression:
+        r = self.radicand.simplify(env)
+
+        # 1. degree 必须是非负整数，否则跳过折叠
+        if isinstance(d, IntegerNode):
+            if d.value == 0:
+                raise ZeroDivisionError("The 0th root is illegal")
+            if d.value == 1:
+                return r
+
+        if not isinstance(d, IntegerNode) or d.value < 1:
+            if d is self.degree and r is self.radicand:
+                return self
+            return RootNode(d, r)
+        n = d.value
+
+        # 2. radicand 是整数
+        if isinstance(r, IntegerNode):
+            result = self._simplify_integer_radicand(n, r.value)
+            if result is not None:
+                return result.simplify(env)
+
+        # 3. radicand 是分数
+        if isinstance(r, FractionNode):
+            result = self._simplify_fraction_radicand(n, r)
+            if result is not None:
+                return result.simplify(env)
+
+        # 4. 其他情况保留（变量、嵌套根号、未折叠的函数等）
+        if d is self.degree and r is self.radicand:
             return self
-        return RootNode(d, e)
+        return RootNode(d, r)
 
     def evaluate(self, env=None):
+        env = env or {}
         degree = self.degree.evaluate(env)
-        value = self.expression.evaluate(env)
+        value = self.radicand.evaluate(env)
 
         if degree == 0:
             raise ValueError("Math Error: 0th root is undefined")
@@ -334,8 +371,114 @@ class RootNode(Node):
             return -pow(abs(value), 1 / degree)
         return pow(value, 1 / degree)
 
-    def to_str(self, parent_prec=0) -> str:
-        return f"deg({self.degree.to_str()})root({self.expression.to_str()})"
+    def _simplify_integer_radicand(self, n: int, value: int) -> Node | None:
+        # 负数：n 为奇数时剥离符号，n 为偶数时抛错
+        if value < 0:
+            if n % 2 == 0:
+                raise ValueError("Math Error: even root of negative number is not real")
+            inner = self._simplify_integer_radicand(n, -value)
+            if inner is None:
+                return None
+            return NegativeNode(inner)
+
+        # 短路
+        if value == 0:
+            return IntegerNode(0)
+        if value == 1:
+            return IntegerNode(1)
+
+        # 超大数：只做一次完全 n 次方判定，不做因子分解
+        if value > self._MAX_RADICAND_FOR_FACTORING:
+            r = self._integer_nth_root(value, n)
+            if r ** n == value:
+                return IntegerNode(r)
+            return None
+
+        outside, inside = self._extract_nth_power(value, n)
+
+        if inside == 1:
+            return IntegerNode(outside)
+        if outside == 1:
+            return RootNode(IntegerNode(n), IntegerNode(inside))
+        return BinaryOpNode(
+            IntegerNode(outside),
+            RootNode(IntegerNode(n), IntegerNode(inside)),
+            "*",
+        )
+
+    def _simplify_fraction_radicand(self, n: int, frac: FractionNode) -> Node | None:
+        num, den = frac.num, frac.den
+        if not isinstance(num, IntegerNode) or not isinstance(den, IntegerNode):
+            return None
+        if den.value == 0:
+            raise ZeroDivisionError("Division by zero")
+
+        a, b = num.value, den.value
+        if b < 0:
+            a, b = -a, -b
+
+        # 分母有理化：√(a/b) = √(a·b) / b
+        combined = abs(a) * b
+        if combined > self._MAX_RADICAND_FOR_FACTORING:
+            return None
+
+        outside, inside = self._extract_nth_power(combined, n)
+
+        radical = IntegerNode(1) if inside == 1 else RootNode(IntegerNode(n), IntegerNode(inside))
+        numerator = IntegerNode(outside) if inside == 1 else BinaryOpNode(IntegerNode(outside), radical, "*")
+
+        result: Node = FractionNode(numerator, IntegerNode(b))
+
+        if a < 0:
+            if n % 2 == 0:
+                raise ValueError("Math Error: even root of negative number is not real")
+            result = NegativeNode(result)
+            return result
+
+    def _integer_nth_root(self, x: int, n: int) -> int:
+            """返回 floor(x ** (1/n))，用二分。x >= 0，n >= 1。"""
+            if x < 0:
+                raise ValueError("integer_nth_root: x must be non-negative")
+            if n <= 0:
+                raise ValueError("integer_nth_root: n must be positive")
+            if x < 2:
+                return x
+
+            lo, hi = 1, 1
+            while hi ** n <= x:
+                hi *= 2
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if mid ** n <= x:
+                    lo = mid
+                else:
+                    hi = mid - 1
+            return lo
+
+    def _extract_nth_power(self, radicand: int, n: int) -> tuple[int, int]:
+            """
+            把 radicand 分解为 outside^n * inside，inside 不再含 n 次方因子。
+            返回 (outside, inside)。radicand >= 0，n >= 2。
+            """
+            if radicand <= 1:
+                return radicand, 1
+
+            outside = 1
+            inside = radicand
+            i = 2
+            while True:
+                i_max = self._integer_nth_root(inside, n)
+                if i > i_max:
+                    break
+                p = i ** n
+                while inside % p == 0:
+                    outside *= i
+                    inside //= p
+                i += 1
+            return outside, inside
+
+    def to_str(self, parent_prec: int = 0) -> str:
+        return f"deg({self.degree.to_str()})root({self.radicand.to_str()})"
 
 
 class TrigNode(Node):
@@ -655,10 +798,10 @@ class ArcTrigNode(Node):
     def _root_signature(self, root: RootNode, den: int) -> tuple | None:
         if not isinstance(root.degree, IntegerNode) or root.degree.value != 2:
             return None
-        if not isinstance(root.expression, IntegerNode):
+        if not isinstance(root.radicand, IntegerNode):
             return None
         # 提取平方因子：√8 → 2√2
-        n = root.expression.value
+        n = root.radicand.value
         outside = 1
         i = 2
         while i * i <= n:
