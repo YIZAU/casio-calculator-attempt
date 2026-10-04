@@ -1,0 +1,6 @@
+{
+    "input_mode": "MODE_CALCULATE",
+    "angle_unit": "DEG",
+    "io_mode": "IO_MATH_MATH",
+    "display_format": "FIX"
+}

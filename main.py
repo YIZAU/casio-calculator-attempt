@@ -55,7 +55,7 @@ class Calculator:
                 else:
                     self.controller.delete()
             elif key_name == "=":
-                self.compute(self.settings.shift_mode)
+                self.calculate(self.settings.shift_mode)
             elif key_name in ["UP", "DOWN", "LEFT", "RIGHT"]:
                 self.controller.move_cursor(key_name)
 
@@ -73,15 +73,14 @@ class Calculator:
             self._turn_off_shift_and_alpha()
             self.settings.running = True
 
-    def compute(self, shift_mode: bool):
+    def calculate(self, shift_mode: bool):
         expression = self.controller.get_expression()
-        result, error = self.engine.evaluate(expression)
+        formulas, error = self.engine.evaluate(expression)
+
         if error:
             print(error)
         else:
-            print(result)
-
-        self.controller.history.append((self.controller.formulas.nodes, result))
+            self.controller.save_history(expression)
 
         self.controller.clear()
 

@@ -12,7 +12,7 @@ class Settings:
         # 长期设置
         self.running = True
 
-        self.setting_map = {
+        self._setting_map = {
             "input_mode": {
                 1: "MODE_CALCULATE",
                 2: "MODE_COMPLEX",
@@ -34,10 +34,12 @@ class Settings:
         }
 
         with open("./data/settings.json", "r", encoding="utf-8") as f:
-            self.settings = json.load(f)
+            self.settings: dict = json.load(f)
+
+        with open("./data/variables.json", "r", encoding="utf-8") as g:
+            self.variables: dict = json.load(g)
 
         # 存储
-        self.ans: int | float | None = None
         self.memory: int | float | None = None
 
     def change_shift_mode(self) -> bool:

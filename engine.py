@@ -464,16 +464,34 @@ class Parser:
         func_type = token.type
         func_name = token.value
 
-        if func_name in ['sin', 'cos', 'tan', 'arcsin', 'arccos', 'arctan', 'ln']:
+        if func_name in ['sin', 'cos', 'tan']:
             self.eat(func_type)
             if self.current_token and self.current_token.type == 'LPAREN':
                 self.eat('LPAREN')
                 arg = self.expr()
                 self.eat('RPAREN')
-                return TriangleFunctionNode(func_name, arg, self.angle_unit)
+                return TrigNode(func_name, arg)
             else:
                 arg = self.factor()
-                return TriangleFunctionNode(func_name, arg, self.angle_unit)
+                return TrigNode(func_name, arg)
+
+        elif func_name in ['arcsin', 'arccos', 'arctan']:
+            self.eat(func_type)
+            if self.current_token and self.current_token.type == 'LPAREN':
+                self.eat('LPAREN')
+                arg = self.expr()
+                self.eat('RPAREN')
+                return ArcTrigNode(func_name, arg)
+            else:
+                arg = self.factor()
+                return ArcTrigNode(func_name, arg)
+
+        elif func_name == "ln":
+            self.eat(func_type)
+            self.eat(Token.TYPE_LPAREN)
+            arg = self.expr()
+            self.eat(Token.TYPE_RPAREN)
+            return UnaryFunctionNode("ln", arg)
 
         elif func_name == 'root':
             self.eat(func_type)
@@ -519,27 +537,9 @@ class Parser:
 
 class Engine:
     def __init__(self, calculator=None):
-        self.calculator = calculator
-        self.variables = {
-            'ans': 0.0,
-            'x': 0.0, 'y': 0.0,
-            'a': 0.0, 'b': 0.0, 'c': 0.0, 'd': 0.0, 'e': 0.0, 'f': 0.0,
-            'm': 0.0
-        }
-        self.settings = self.calculator.settings.settings  # DEG / RAD / GRA
-
-        self.angle_unit = self.settings["angle_unit"]
-
-    def set_variable(self, name: str, value: float):
-        self.variables[name.lower()] = value
-
-    def get_variable(self, name: str) -> float:
-        return self.variables.get(name.lower(), 0.0)
-
-    def set_angle_unit(self, unit: str):
-        """设置角度单位"""
-        if unit in ['DEG', 'RAD', 'GRA']:
-            self.angle_unit = unit
+        from main import Calculator
+        self.calculator: Calculator = calculator
+        self.ans = None
 
     def parse(self, expression: str) -> Node:
         """解析表达式，返回 AST"""
@@ -550,49 +550,36 @@ class Engine:
 
         # 词法分析
         lexer = Lexer(expr)
-        parser = Parser(lexer, self.angle_unit)
+        parser = Parser(lexer)
 
         # 注入上下文
-        parser.variables = self.variables
-        parser.ans = self.variables.get('ans', 0.0)
-        parser.context = {
-            'variables': self.variables,
-            'ans': self.variables.get('ans', 0.0),
-            'angle_unit': self.angle_unit
-        }
+        # parser.variables = self.variables
+        # parser.ans = self.variables.get('Ans', 0.0)
+        # parser.context = {
+        #     'variables': self.variables,
+        #     'Ans': self.variables.get('Ans', 0.0),
+        #     'angle_unit': self.angle_unit
+        # }
 
         return parser.expr()  # 直接调用 expr() 解析
 
     def evaluate(self, expression: str) -> tuple:
-        """
-        解析并计算表达式
-        返回: (结果, 错误信息)
-        """
         if not expression or expression.strip() == '':
-            return 0.0, None
+            return IntegerNode(0), None
 
         try:
-            # 1. 解析 → AST
+
+            # 1. Parser → AST
             ast = self.parse(expression)
 
-            # 2. 求值
-            result = ast.evaluate()
+            # 2. simplify the result AST
+            result = ast.simplify(env=self.package_environment())
+            print(result)    # temporary display, used for debugging
 
-            # 3. 格式化
-            if isinstance(result, float):
-                if result.is_integer():
-                    result = int(result)
-                else:
-                    # 避免浮点精度问题
-                    result = round(result, 12)
-                    # 如果四舍五入后变成整数，转为 int
-                    if result.is_integer():
-                        result = int(result)
+            # 3. update tha history
+            formulas = result.to_str()
 
-            # 4. 更新 ans
-            self.variables['ans'] = float(result) if isinstance(result, (int, float)) else 0
-
-            return result, None
+            return formulas, None
 
         except ZeroDivisionError:
             return 'Math Error', '除以零'
@@ -603,13 +590,13 @@ class Engine:
         except Exception as e:
             return 'Error', str(e)
 
-    def get_display_string(self, expression: str) -> str:
-        """获取表达式的自然显示字符串"""
-        try:
-            ast = self.parse(expression)
-            return ast.to_str()
-        except:
-            return expression
+    def package_environment(self) -> dict:
+        env = {}
+        for variable_name, formulas in self.calculator.settings.variables.items():
+            # print(variable_name, formulas)
+            env[variable_name] = self.parse(formulas)
+        env["angle_unit"] = self.calculator.settings.settings["angle_unit"]
+        return env
 
     def get_ast(self, expression: str) -> Node | None:
         """获取 AST（用于调试）"""

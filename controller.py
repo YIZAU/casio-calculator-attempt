@@ -100,7 +100,8 @@ class FormulaList:
                 # degree 的值: 2 | 3 | None
                 self.insert_at_index(FormulaNode(str(degree), FormulaNode.TYPE_NUMBER))
             else:
-                if self.index > 0 and self.nodes[self.index-1].node_type in (FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
+                if self.index > 0 and self.nodes[self.index - 1].node_type in (
+                        FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
                     deg_start = self._find_continuous_value_before_cursor()
                     now_index = self.index
 
@@ -275,15 +276,16 @@ class FormulaList:
 
         # 指针前是 LogBase, 删除整个函数只保留真数
         if self.nodes[self.index - 1].node_type == FormulaNode.TYPE_LOG_BASE:
-            log_start, log_end = self._find_log_pair_with_log_base(self.index-1)
+            log_start, log_end = self._find_log_pair_with_log_base(self.index - 1)
             del self.nodes[log_end]
-            del self.nodes[self.index-1: log_start+1]
+            del self.nodes[self.index - 1: log_start + 1]
             return True
 
         # 指针前是 LogStart
         elif self.nodes[self.index - 1].node_type == FormulaNode.TYPE_LOG_START:
             # 底数与真数全为空，全部删除
-            if self.nodes[self.index].node_type == FormulaNode.TYPE_LOG_END and self.nodes[self.index - 2].node_type == FormulaNode.TYPE_LOG_BASE:
+            if self.nodes[self.index].node_type == FormulaNode.TYPE_LOG_END and self.nodes[
+                self.index - 2].node_type == FormulaNode.TYPE_LOG_BASE:
                 self.index -= 2
                 del self.nodes[self.index: self.index + 3]
             # 底数与真数非全为空，底数为空，光标移至底数，不删除
@@ -298,7 +300,8 @@ class FormulaList:
         # 指针前是 LogEnd
         elif self.nodes[self.index - 1].node_type == FormulaNode.TYPE_LOG_END:
             # 底数与真数全为空，全部删除
-            if self.nodes[self.index - 2].node_type == FormulaNode.TYPE_LOG_START and self.nodes[self.index - 3].node_type == FormulaNode.TYPE_LOG_BASE:
+            if self.nodes[self.index - 2].node_type == FormulaNode.TYPE_LOG_START and self.nodes[
+                self.index - 3].node_type == FormulaNode.TYPE_LOG_BASE:
                 self.index -= 3
                 del self.nodes[self.index: self.index + 3]
             # 底数与真数非全为空，真数为空，光标移至真数，不删除
@@ -334,6 +337,30 @@ class FormulaList:
         print('>> ' + expression)
 
 
+class History:
+    def __init__(self, controller):
+        self.controller = controller
+
+        self.index = -1
+        self.log = []
+
+    def save(self, formulas: str):
+        self.log.append(formulas)
+        self.index = -1
+
+    def _forward(self):
+        if self.index < -1:
+            self.index += 1
+
+    def _backward(self):
+        if self.index > -1 * len(self.log):
+            self.index -= 1
+
+    def clear(self):
+        self.index = -1
+        self.log = []
+
+
 class Controller:
     def __init__(self, calculator, formulas: FormulaList):
         from main import Calculator
@@ -341,8 +368,7 @@ class Controller:
         self.states = self.calculator.settings
         self.formulas = formulas
 
-        self.history = []
-        self.history_index = -1
+        self.history = History(self)
 
         self.variables_table = {
             "(-)": 'A',
@@ -376,9 +402,9 @@ class Controller:
             elif key_name in ['sin', 'cos', 'tan']:
                 self.formulas.add_function(self.shift_table[key_name])
             elif key_name in ['square', 'ln', 'log']:
-                self.deal_power(self.shift_table[key_name])
+                self._deal_power(self.shift_table[key_name])
             elif key_name in ['sqrt', 'power']:
-                self.deal_root(self.shift_table[key_name])
+                self._deal_root(self.shift_table[key_name])
             elif key_name in ['f^-1', '*', '/']:
                 self.formulas.add_sign(self.shift_table[key_name])
         elif alpha_mode:
@@ -396,19 +422,20 @@ class Controller:
             elif key_name == 'log':
                 self.formulas.add_logarithm()
             elif key_name in ['square', 'power', 'x10^', 'f^-1']:
-                self.deal_power(key_name)
+                self._deal_power(key_name)
             elif key_name == 'sqrt':
-                self.deal_root(key_name)
+                self._deal_root(key_name)
             elif key_name == 'x':
                 self.formulas.add_variable('x')
 
         self.formulas.display_in_cmd()
 
-    def deal_power(self, msg: str):
+    def _deal_power(self, msg: str):
         # 不允许连续幂
         if msg in ['square', 'cube', 'power', 'f^-1']:
             if (self.formulas.index > 0 and
-                    self.formulas.nodes[self.formulas.index-1].node_type in (FormulaNode.TYPE_POWER_END, FormulaNode.TYPE_POWER_START)):
+                    self.formulas.nodes[self.formulas.index - 1].node_type in (
+                            FormulaNode.TYPE_POWER_END, FormulaNode.TYPE_POWER_START)):
                 return
         if msg == 'square':
             self.formulas.add_power(exp='2')
@@ -426,7 +453,7 @@ class Controller:
         elif msg == 'f^-1':
             self.formulas.add_power(exp='-1')
 
-    def deal_root(self, msg: str):
+    def _deal_root(self, msg: str):
         if msg == 'sqrt':
             self.formulas.add_root(degree=2)
         elif msg == 'cbrt':
@@ -445,6 +472,9 @@ class Controller:
             pass
 
         self.formulas.display_in_cmd()
+
+    def save_history(self, formulas: str):
+        self.history.save(formulas)
 
     def clear(self):
         self.formulas.clear()
