@@ -55,6 +55,8 @@ class UI:
         self._initialize_L2()
         self._initialize_L3()
 
+        self.display_angle_unit()
+
     def _initialize_L1(self):
         self.L1.pack(pady=(10, 5), padx=10, fill='x')
 
@@ -89,6 +91,21 @@ class UI:
             self.flags[name].config(image=self.flag_images[name])
         else:
             self.flags[name].config(image='')
+
+    def display_angle_unit(self):
+        angle_unit = self.calculator.settings.settings.get("angle_unit")
+        if angle_unit == "DEG":
+            self.update_flag("D", True)
+            self.update_flag("R", False)
+            self.update_flag("G", False)
+        elif angle_unit == "RAD":
+            self.update_flag("D", False)
+            self.update_flag("R", True)
+            self.update_flag("G", False)
+        else:
+            self.update_flag("D", False)
+            self.update_flag("R", False)
+            self.update_flag("G", True)
 
     def _initialize_L2(self):
         for i in range(1, 6):

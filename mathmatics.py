@@ -3,6 +3,9 @@ from __future__ import annotations
 import math
 from typing import Any, Callable
 
+_MAX_INT_POWER = 10 ** 5              # 整数幂上限
+_MAX_BASE_FOR_ROOT = 10 ** 12         # 分数指数时完全 q 次方判定的底数上限
+
 _TABLE: dict[tuple[str, type, type], Callable[[Any, Any], Any]] = {}
 
 
@@ -32,6 +35,7 @@ class Node:
     __slots__ = ()
 
     # ---- Operator overloading ----
+
     def __add__(self, other):
         return self._binary_op(other, "+")
 
@@ -311,50 +315,517 @@ class BinaryOpNode(Node):
         return f"{self.left.to_str()}{self.op}{self.right.to_str()}"
 
 
+def _integer_nth_root(x: int, n: int) -> int:
+    """floor(x ** (1/n))，二分法，避免浮点误差。"""
+    if x < 0 or n <= 0:
+        return 0
+    if x < 2:
+        return x
+    lo, hi = 1, 1
+    while hi ** n <= x:
+        hi *= 2
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if mid ** n <= x:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
+def _extract_int_pair(frac: FractionNode) -> tuple:
+    """从 FractionNode 提取 (p, q)，q > 0。失败返回 (None, None)。"""
+    if not isinstance(frac.num, IntegerNode) or not isinstance(frac.den, IntegerNode):
+        return None, None
+    p, q = frac.num.value, frac.den.value
+    if q <= 0:
+        return None, None
+    return p, q
+
+
+def _extract_nth_power(radicand: int, n: int) -> tuple:
+    """把 radicand 分解为 outside^n * inside，inside 不含 n 次方因子。"""
+    if radicand <= 1:
+        return radicand, 1
+    outside, inside = 1, radicand
+    i = 2
+    while True:
+        i_max = _integer_nth_root(inside, n)
+        if i > i_max:
+            break
+        p = i ** n
+        while inside % p == 0:
+            outside *= i
+            inside //= p
+        i += 1
+    return outside, inside
+
+
+def _int_pow(base: int, exp: int) -> Node | None:
+    """整数 ^ 整数，含溢出保护。"""
+    if exp == 0:
+        return IntegerNode(1)
+    if exp > 0:
+        if exp > _MAX_INT_POWER:
+            return None
+        return IntegerNode(base ** exp)
+    if base == 0:
+        raise ZeroDivisionError("Math Error: division by zero")
+    if -exp > _MAX_INT_POWER:
+        return None
+    return FractionNode(
+        IntegerNode(1),
+        IntegerNode(base ** (-exp)),
+    ).simplify()
+
+
+class PowerNode(Node):
+    __slots__ = ("base", "exp")
+
+    def __init__(self, base: Node, exp: Node):
+        self.base = base
+        self.exp = exp
+
+    def simplify(self, env=None):
+        env = env or {}
+        b = self.base.simplify(env)
+        e = self.exp.simplify(env)
+
+        result = self._fold_trivial(b, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_nested_power(b, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_root_power(b, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_negative_base(b, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_fraction_base(b, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_integer_base(b, e, env)
+        if result is not None:
+            return result
+
+        if b is self.base and e is self.exp:
+            return self
+        return PowerNode(b, e)
+
+    def _fold_trivial(self, b: Node, e: Node, env):
+        # e == 0
+        if isinstance(e, IntegerNode) and e.value == 0:
+            if isinstance(b, IntegerNode) and b.value == 0:
+                raise ValueError("Math Error: 0^0 is undefined")
+            return IntegerNode(1)
+
+        # e == 1
+        if isinstance(e, IntegerNode) and e.value == 1:
+            return b
+
+        # b == 1
+        if isinstance(b, IntegerNode) and b.value == 1:
+            return IntegerNode(1)
+
+        # b == -1
+        if isinstance(b, IntegerNode) and b.value == -1:
+            if isinstance(e, IntegerNode):
+                return IntegerNode(1 if e.value % 2 == 0 else -1)
+
+        # b == 0
+        if isinstance(b, IntegerNode) and b.value == 0:
+            if isinstance(e, IntegerNode):
+                if e.value < 0:
+                    raise ZeroDivisionError("Math Error: division by zero")
+                return IntegerNode(0)
+            if isinstance(e, DecimalNode):
+                if e.value < 0:
+                    raise ZeroDivisionError("Math Error: division by zero")
+                return IntegerNode(0)
+            if isinstance(e, FractionNode):
+                if isinstance(e.num, IntegerNode) and e.num.value < 0:
+                    raise ZeroDivisionError("Math Error: division by zero")
+                return IntegerNode(0)
+
+        return None
+
+    def _fold_nested_power(self, b: Node, e: Node, env):
+        """(a^m)^n = a^(m*n)，m、n 都是整数时成立。"""
+        if not isinstance(b, PowerNode):
+            return None
+        m = b.exp
+        if not isinstance(m, IntegerNode) or not isinstance(e, IntegerNode):
+            return None
+        new_exp = IntegerNode(m.value * e.value)
+        return PowerNode(b.base, new_exp).simplify(env)
+
+    def _fold_root_power(self, b: Node, e: Node, env):
+        """(n√x)^m = x^(m/n)，m、n 都是整数时成立。"""
+        if not isinstance(b, RootNode):
+            return None
+        d = b.degree
+        if not isinstance(d, IntegerNode) or not isinstance(e, IntegerNode):
+            return None
+        # 显式构造后先简化 FractionNode，避免 e=4, d=2 时残留 4/2
+        new_exp = FractionNode(e, d).simplify(env)
+        return PowerNode(b.radicand, new_exp).simplify(env)
+
+    def _fold_negative_base(self, b: Node, e: Node, env):
+        """(-a)^e = (-1)^e · a^e"""
+        if not isinstance(b, NegativeNode):
+            return None
+        pos_base = b.child
+
+        if isinstance(e, IntegerNode):
+            inner = PowerNode(pos_base, e).simplify(env)
+            if inner is None:
+                return None
+            return inner if e.value % 2 == 0 else NegativeNode(inner)
+
+        if isinstance(e, FractionNode):
+            p, q = _extract_int_pair(e)
+            if p is None:
+                return None
+            if q % 2 == 0:
+                if env.get("complex_mode"):
+                    return None
+                raise ValueError("Math Error: even root of negative number")
+            inner = PowerNode(pos_base, e).simplify(env)
+            if inner is None:
+                return None
+            return inner if p % 2 == 0 else NegativeNode(inner)
+
+        return None
+
+    def _fold_fraction_base(self, b: Node, e: Node, env):
+        """(a/b)^e"""
+        if not isinstance(b, FractionNode):
+            return None
+        if not isinstance(b.num, IntegerNode) or not isinstance(b.den, IntegerNode):
+            return None
+        if b.den.value == 0:
+            raise ZeroDivisionError("Math Error: division by zero")
+
+        # 整数指数
+        if isinstance(e, IntegerNode):
+            n = e.value
+            if n >= 0:
+                if n > _MAX_INT_POWER:
+                    return None
+                return FractionNode(
+                    IntegerNode(b.num.value ** n),
+                    IntegerNode(b.den.value ** n),
+                ).simplify(env)
+            n = -n
+            if n > _MAX_INT_POWER:
+                return None
+            if b.num.value == 0:
+                raise ZeroDivisionError("Math Error: division by zero")
+            return FractionNode(
+                IntegerNode(b.den.value ** n),
+                IntegerNode(b.num.value ** n),
+            ).simplify(env)
+
+        # 分数指数 p/q
+        if isinstance(e, FractionNode):
+            p, q = _extract_int_pair(e)
+            if p is None:
+                return None
+            if b.num.value < 0:
+                return None
+            if abs(p) > _MAX_INT_POWER:
+                return None
+
+            # 完全 q 次方判定（分子分母都要）
+            if (b.num.value <= _MAX_BASE_FOR_ROOT
+                    and b.den.value <= _MAX_BASE_FOR_ROOT):
+                num_r = _integer_nth_root(b.num.value, q)
+                den_r = _integer_nth_root(b.den.value, q)
+                if num_r ** q == b.num.value and den_r ** q == b.den.value:
+                    if p >= 0:
+                        return FractionNode(
+                            IntegerNode(num_r ** p),
+                            IntegerNode(den_r ** p),
+                        ).simplify(env)
+                    n = -p
+                    return FractionNode(
+                        IntegerNode(den_r ** n),
+                        IntegerNode(num_r ** n),
+                    ).simplify(env)
+
+            # 非完全 q 次方：转为 RootNode 形式
+            return self._transform_to_root(b, p, q, env)
+
+        return None
+
+    def _fold_integer_base(self, b: Node, e: Node, env):
+        """a^e，a 是正整数"""
+        if not isinstance(b, IntegerNode):
+            return None
+        if b.value < 0:
+            return None
+
+        # 整数指数
+        if isinstance(e, IntegerNode):
+            return _int_pow(b.value, e.value)
+
+        # 分数指数 p/q
+        if isinstance(e, FractionNode):
+            p, q = _extract_int_pair(e)
+            if p is None:
+                return None
+            if b.value == 0:
+                return None
+            if abs(p) > _MAX_INT_POWER:
+                return None
+
+            # 完全 q 次方 → 直接算
+            if b.value <= _MAX_BASE_FOR_ROOT:
+                r = _integer_nth_root(b.value, q)
+                if r ** q == b.value:
+                    return _int_pow(r, p)
+
+            # 非完全 q 次方 → 转为 RootNode 形式
+            return self._transform_to_root(b, p, q, env)
+
+        return None
+
+    def _transform_to_root(self, b: Node, p: int, q: int, env):
+        """
+        a^(p/q) → q√(a^p)，p < 0 时返回 1 / q√(a^|p|)
+        用于整数底和分数底的非完全 q 次方情形。
+        """
+        if q <= 1:
+            return None
+
+        if p > 0:
+            inner = PowerNode(b, IntegerNode(p)).simplify(env)
+            if inner is None:
+                return None
+            return RootNode(IntegerNode(q), inner).simplify(env)
+        elif p < 0:
+            inner = PowerNode(b, IntegerNode(-p)).simplify(env)
+            if inner is None:
+                return None
+            radical = RootNode(IntegerNode(q), inner).simplify(env)
+            return FractionNode(IntegerNode(1), radical).simplify(env)
+        # p == 0 已在平凡规则处理
+        return None
+
+    def evaluate(self, env=None):
+        env = env or {}
+        base = self.base.evaluate(env)
+        exp = self.exp.evaluate(env)
+
+        if base == 0 and exp == 0:
+            raise ValueError("Math Error: 0^0 is undefined")
+
+        # 复数参与
+        if isinstance(base, complex) or isinstance(exp, complex):
+            return base ** exp
+
+        # 负数底、非整数指
+        if isinstance(base, (int, float)) and base < 0:
+            if isinstance(exp, (int, float)) and exp == int(exp):
+                pass   # 整数指数，合法
+            else:
+                if env.get("complex_mode"):
+                    return complex(base) ** exp
+                raise ValueError("Math Error: negative number to non-integer power")
+
+        return pow(base, exp)
+
+    def to_str(self, parent_prec: int = 0) -> str:
+        base_str = self.base.to_str(4)
+        exp_str = self.exp.to_str()
+        return f"{base_str}^({exp_str})"
+
+
 class RootNode(Node):
     __slots__ = ("degree", "radicand")
 
-    # 超过此值不再做因子提取（完全 n 次方判定仍然会做一次）
     _MAX_RADICAND_FOR_FACTORING = 10 ** 10
 
-    def __init__(self, degree: Node, expression: Node):
+    def __init__(self, degree: Node, radicand: Node):
         self.degree = degree
-        self.radicand = expression
+        self.radicand = radicand
 
     def simplify(self, env=None):
         env = env or {}
         d = self.degree.simplify(env)
-        r = self.radicand.simplify(env)
-
-        # 1. degree 必须是非负整数，否则跳过折叠
-        if isinstance(d, IntegerNode):
-            if d.value == 0:
-                raise ZeroDivisionError("The 0th root is illegal")
-            if d.value == 1:
-                return r
+        e = self.radicand.simplify(env)
 
         if not isinstance(d, IntegerNode) or d.value < 1:
-            if d is self.degree and r is self.radicand:
-                return self
-            return RootNode(d, r)
+            return self._rebuild(d, e)
+
         n = d.value
 
-        # 2. radicand 是整数
-        if isinstance(r, IntegerNode):
-            result = self._simplify_integer_radicand(n, r.value)
-            if result is not None:
-                return result.simplify(env)
+        result = self._fold_trivial(n, e)
+        if result is not None:
+            return result
 
-        # 3. radicand 是分数
-        if isinstance(r, FractionNode):
-            result = self._simplify_fraction_radicand(n, r)
-            if result is not None:
-                return result.simplify(env)
+        result = self._fold_nested_root(n, e, env)
+        if result is not None:
+            return result
 
-        # 4. 其他情况保留（变量、嵌套根号、未折叠的函数等）
-        if d is self.degree and r is self.radicand:
+        result = self._fold_power_radicand(n, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_negative_radicand(n, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_fraction_radicand(n, e, env)
+        if result is not None:
+            return result
+
+        result = self._fold_integer_radicand(n, e, env)
+        if result is not None:
+            return result
+
+        return self._rebuild(d, e)
+
+    def _fold_trivial(self, n, e: Node):
+        if n == 1:
+            return e
+        if isinstance(e, IntegerNode):
+            if e.value == 0:
+                return IntegerNode(0)
+            if e.value == 1:
+                return IntegerNode(1)
+        return None
+
+    def _fold_nested_root(self, n, e: Node, env):
+        """n√(m√x) = (n·m)√x"""
+        if not isinstance(e, RootNode):
+            return None
+        inner_d = e.degree
+        if not isinstance(inner_d, IntegerNode) or inner_d.value < 1:
+            return None
+        new_d = IntegerNode(n * inner_d.value)
+        return RootNode(new_d, e.radicand).simplify(env)
+
+    def _fold_power_radicand(self, n, e: Node, env):
+        """n√(x^m) = x^(m//n) · n√(x^(m%n))"""
+        if not isinstance(e, PowerNode):
+            return None
+        exp = e.exp
+        if not isinstance(exp, IntegerNode):
+            return None
+
+        m = exp.value
+        quotient, remainder = divmod(m, n)
+
+        if remainder == 0:
+            return PowerNode(e.base, IntegerNode(quotient)).simplify(env)
+
+        if quotient == 0:
+            return None   # 无法提取
+
+        outer = PowerNode(e.base, IntegerNode(quotient)).simplify(env)
+        inner = RootNode(
+            IntegerNode(n),
+            PowerNode(e.base, IntegerNode(remainder)).simplify(env),
+        ).simplify(env)
+        return BinaryOpNode(outer, inner, "*").simplify(env)
+
+    def _fold_negative_radicand(self, n, e: Node, env):
+        """n√(-x) = -n√x（n 奇）；n 偶时实数模式报错"""
+        if not isinstance(e, NegativeNode):
+            return None
+        if n % 2 == 0:
+            if env.get("complex_mode"):
+                return None
+            raise ValueError("Math Error: even root of negative number")
+        inner = RootNode(IntegerNode(n), e.child).simplify(env)
+        return NegativeNode(inner).simplify(env)
+
+    def _fold_fraction_radicand(self, n, e: Node, env):
+        """n√(a/b) = n√(a·b) / b"""
+        if not isinstance(e, FractionNode):
+            return None
+        if not isinstance(e.num, IntegerNode) or not isinstance(e.den, IntegerNode):
+            return None
+
+        a, b = e.num.value, e.den.value
+        if b == 0:
+            raise ZeroDivisionError("Math Error: division by zero")
+        if b < 0:
+            a, b = -a, -b
+
+        negative = a < 0
+        a = abs(a)
+
+        combined = a * b
+        if combined > self._MAX_RADICAND_FOR_FACTORING:
+            return None
+
+        outside, inside = _extract_nth_power(combined, n)
+
+        if inside == 1:
+            numerator: Node = IntegerNode(outside)
+        elif outside == 1:
+            numerator = RootNode(IntegerNode(n), IntegerNode(inside))
+        else:
+            numerator = BinaryOpNode(
+                IntegerNode(outside),
+                RootNode(IntegerNode(n), IntegerNode(inside)),
+                "*",
+            )
+
+        result: Node = FractionNode(numerator, IntegerNode(b))
+
+        if negative:
+            if n % 2 == 0:
+                if env.get("complex_mode"):
+                    return None
+                raise ValueError("Math Error: even root of negative number")
+            result = NegativeNode(result)
+
+        return result.simplify(env)
+
+    def _fold_integer_radicand(self, n, e: Node, env):
+        if not isinstance(e, IntegerNode):
+            return None
+        value = e.value
+
+        if value < 0:
+            return None
+        if value == 0:
+            return IntegerNode(0)
+        if value == 1:
+            return IntegerNode(1)
+
+        if value > self._MAX_RADICAND_FOR_FACTORING:
+            r = _integer_nth_root(value, n)
+            if r ** n == value:
+                return IntegerNode(r)
+            return None
+
+        outside, inside = _extract_nth_power(value, n)
+
+        if inside == 1:
+            return IntegerNode(outside)
+        if outside == 1:
+            return RootNode(IntegerNode(n), IntegerNode(inside))
+        return BinaryOpNode(
+            IntegerNode(outside),
+            RootNode(IntegerNode(n), IntegerNode(inside)),
+            "*",
+        )
+
+    def _rebuild(self, d: Node, e: Node) -> Node:
+        if d is self.degree and e is self.radicand:
             return self
-        return RootNode(d, r)
+        return RootNode(d, e)
 
     def evaluate(self, env=None):
         env = env or {}
@@ -367,118 +838,59 @@ class RootNode(Node):
             return 0
         if value < 0:
             if degree % 2 == 0:
+                if env.get("complex_mode"):
+                    return complex(value) ** (1 / degree)
                 raise ValueError("Math Error: even root of negative number is not real")
             return -pow(abs(value), 1 / degree)
         return pow(value, 1 / degree)
 
-    def _simplify_integer_radicand(self, n: int, value: int) -> Node | None:
-        # 负数：n 为奇数时剥离符号，n 为偶数时抛错
-        if value < 0:
-            if n % 2 == 0:
-                raise ValueError("Math Error: even root of negative number is not real")
-            inner = self._simplify_integer_radicand(n, -value)
-            if inner is None:
-                return None
-            return NegativeNode(inner)
-
-        # 短路
-        if value == 0:
-            return IntegerNode(0)
-        if value == 1:
-            return IntegerNode(1)
-
-        # 超大数：只做一次完全 n 次方判定，不做因子分解
-        if value > self._MAX_RADICAND_FOR_FACTORING:
-            r = self._integer_nth_root(value, n)
-            if r ** n == value:
-                return IntegerNode(r)
-            return None
-
-        outside, inside = self._extract_nth_power(value, n)
-
-        if inside == 1:
-            return IntegerNode(outside)
-        if outside == 1:
-            return RootNode(IntegerNode(n), IntegerNode(inside))
-        return BinaryOpNode(
-            IntegerNode(outside),
-            RootNode(IntegerNode(n), IntegerNode(inside)),
-            "*",
-        )
-
-    def _simplify_fraction_radicand(self, n: int, frac: FractionNode) -> Node | None:
-        num, den = frac.num, frac.den
-        if not isinstance(num, IntegerNode) or not isinstance(den, IntegerNode):
-            return None
-        if den.value == 0:
-            raise ZeroDivisionError("Division by zero")
-
-        a, b = num.value, den.value
-        if b < 0:
-            a, b = -a, -b
-
-        # 分母有理化：√(a/b) = √(a·b) / b
-        combined = abs(a) * b
-        if combined > self._MAX_RADICAND_FOR_FACTORING:
-            return None
-
-        outside, inside = self._extract_nth_power(combined, n)
-
-        radical = IntegerNode(1) if inside == 1 else RootNode(IntegerNode(n), IntegerNode(inside))
-        numerator = IntegerNode(outside) if inside == 1 else BinaryOpNode(IntegerNode(outside), radical, "*")
-
-        result: Node = FractionNode(numerator, IntegerNode(b))
-
-        if a < 0:
-            if n % 2 == 0:
-                raise ValueError("Math Error: even root of negative number is not real")
-            result = NegativeNode(result)
-            return result
-
-    def _integer_nth_root(self, x: int, n: int) -> int:
-            """返回 floor(x ** (1/n))，用二分。x >= 0，n >= 1。"""
-            if x < 0:
-                raise ValueError("integer_nth_root: x must be non-negative")
-            if n <= 0:
-                raise ValueError("integer_nth_root: n must be positive")
-            if x < 2:
-                return x
-
-            lo, hi = 1, 1
-            while hi ** n <= x:
-                hi *= 2
-            while lo < hi:
-                mid = (lo + hi + 1) // 2
-                if mid ** n <= x:
-                    lo = mid
-                else:
-                    hi = mid - 1
-            return lo
-
-    def _extract_nth_power(self, radicand: int, n: int) -> tuple[int, int]:
-            """
-            把 radicand 分解为 outside^n * inside，inside 不再含 n 次方因子。
-            返回 (outside, inside)。radicand >= 0，n >= 2。
-            """
-            if radicand <= 1:
-                return radicand, 1
-
-            outside = 1
-            inside = radicand
-            i = 2
-            while True:
-                i_max = self._integer_nth_root(inside, n)
-                if i > i_max:
-                    break
-                p = i ** n
-                while inside % p == 0:
-                    outside *= i
-                    inside //= p
-                i += 1
-            return outside, inside
-
     def to_str(self, parent_prec: int = 0) -> str:
         return f"deg({self.degree.to_str()})root({self.radicand.to_str()})"
+
+
+def _reduce_angle_to_first_quadrant(rational_c: tuple[int, int]) -> tuple[int, int, tuple[int, int, int]]:
+    """
+    返回 (p, q, sign)：
+      - (p/q)·π 是第一象限内的角
+      - sign = (sin_sign, cos_sign, tan_sign) 的元组
+    """
+    p, q = rational_c
+
+    g = math.gcd(p, q)
+    p, q = p // g, q // g
+
+    if q < 0:
+        p, q = -p, -q
+
+    # 归一化到 [0, 2)：用模运算，负数自动变正
+    p = p % (2 * q)
+
+    if p == 0:
+        return 0, 1, (+1, +1, +1)
+
+    # 判断落在 哪个象限
+    if 2 * p <= q:
+        # [0, π/2]
+        return p, q, (+1, +1, +1)
+    elif p <= q:
+        # (π/2, π]
+        return q - p, q, (+1, -1, -1)
+    elif 2 * p <= 3 * q:
+        # (π, 3π/2]
+        return p - q, q, (-1, -1, +1)
+    else:
+        # (3π/2, 2π)
+        return 2 * q - p, q, (-1, +1, -1)
+
+
+def _rationalize(node: Node) -> tuple[int, int] | None:
+    """把 Node 归一为 (n, d)，仅支持 IntegerNode 和 FractionNode(int,int)。"""
+    if isinstance(node, IntegerNode):
+        return node.value, 1
+    if isinstance(node, FractionNode):
+        if isinstance(node.num, IntegerNode) and isinstance(node.den, IntegerNode):
+            return node.num.value, node.den.value
+    return None
 
 
 class TrigNode(Node):
@@ -553,7 +965,7 @@ class TrigNode(Node):
 
         rational_c = self._extract_pi_coefficient(arg)
         if rational_c is not None:
-            p, q, signs = self._reduce_to_first_quadrant(rational_c)
+            p, q, signs = _reduce_angle_to_first_quadrant(rational_c)
 
             value_nodes = self._SPECIAL_ANGLES.get((p, q), None)
 
@@ -617,11 +1029,11 @@ class TrigNode(Node):
         # n·π 或 π·n
         if isinstance(node, BinaryOpNode) and node.op == "*":
             if isinstance(node.right, PiNode):
-                c = self._rationalize(node.left)
+                c = _rationalize(node.left)
                 if c is not None:
                     return c
             if isinstance(node.left, PiNode):
-                c = self._rationalize(node.right)
+                c = _rationalize(node.right)
                 if c is not None:
                     return c
 
@@ -632,49 +1044,6 @@ class TrigNode(Node):
                 return num_coef[0], num_coef[1] * node.den.value
 
         return None
-
-    def _rationalize(self, node: Node) -> tuple[int, int] | None:
-        """把 Node 归一为 (n, d)，仅支持 IntegerNode 和 FractionNode(int,int)。"""
-        if isinstance(node, IntegerNode):
-            return node.value, 1
-        if isinstance(node, FractionNode):
-            if isinstance(node.num, IntegerNode) and isinstance(node.den, IntegerNode):
-                return node.num.value, node.den.value
-        return None
-
-    def _reduce_to_first_quadrant(self, rational_c: tuple[int, int]) -> tuple[int, int, tuple[int, int, int]]:
-        """
-        返回 (p, q, sign)：
-          - (p/q)·π 是第一象限内的角
-          - sign = (sin_sign, cos_sign, tan_sign) 的元组
-        """
-        p, q = rational_c
-
-        g = math.gcd(p, q)
-        p, q = p // g, q // g
-
-        if q < 0:
-            p, q = -p, -q
-
-        # 归一化到 [0, 2)：用模运算，负数自动变正
-        p = p % (2 * q)
-
-        if p == 0:
-            return 0, 1, (+1, +1, +1)
-
-        # 判断落在 哪个象限
-        if 2 * p <= q:
-            # [0, π/2]
-            return p, q, (+1, +1, +1)
-        elif p <= q:
-            # (π/2, π]
-            return q - p, q, (+1, -1, -1)
-        elif 2 * p <= 3 * q:
-            # (π, 3π/2]
-            return p - q, q, (-1, -1, +1)
-        else:
-            # (3π/2, 2π)
-            return 2 * q - p, q, (-1, +1, -1)
 
     def to_str(self, parent_prec=0) -> str:
         return f"{self.name}({self.argument.to_str()})"
@@ -825,33 +1194,6 @@ class ArcTrigNode(Node):
 
     def to_str(self, parent_prec: int = 0) -> str:
         return f"{self.name}({self.argument.to_str()})"
-
-
-class PowerNode(Node):
-    __slots__ = ("base", "exp")
-
-    def __init__(self, base: Node, exponent: Node):
-        self.base = base
-        self.exp = exponent
-
-    def simplify(self, env=None):
-        b = self.base.simplify(env)
-        e = self.exp.simplify(env)
-        if b is self.base and e is self.exp:
-            return self
-        return PowerNode(b, e)
-
-    def evaluate(self, env=None) -> float:
-        base = self.base.evaluate()
-        exp = self.exp.evaluate()
-        if base == 0 and exp == 0:
-            raise ValueError("Math Error: 0^0 is undefined")
-        if isinstance(base, (int, float)) and base < 0 and exp != int(exp):
-            raise ValueError("Negative number to non-integer power")
-        return math.pow(base, exp)
-
-    def to_str(self, parent_prec=0) -> str:
-        return f"{self.base.to_str()}^({self.exp.to_str()})"
 
 
 class UnaryFunctionNode(Node):
