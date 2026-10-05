@@ -9,9 +9,9 @@
 ### 1.1 两个节点的定位
 
 | 节点 | 数学形式 | 输入字符串 |
-| --- | --- | --- |
-| PowerNode | ae | a^(e) |
-| RootNode | n√x | deg(n)root(x) |
+| --- |------| --- |
+| PowerNode | a^e  | a^(e) |
+| RootNode | n√x  | deg(n)root(x) |
 
 ### 1.2 互不替代的原则
 

@@ -451,12 +451,12 @@ class Parser:
         # 处理后缀运算符（前瞻）
         while self.current_token and self.current_token.type == 'OP' and self.current_token.value == '!':
             self.eat('OP')
-            node = BinaryFunctionNode('perm', node, node)  # 用 perm(n,n) 实现阶乘
+            node = CombinatoricNode(node, node, comb=False)  # 用 perm(n,n) 实现阶乘
         while self.current_token and self.current_token.type == 'OP' and self.current_token.value in ('perm', 'comb'):
             op = self.current_token.value
             self.eat('OP')
             right = self.factor()
-            node = BinaryFunctionNode(op, node, right)
+            node = CombinatoricNode(node, right) if op == "comb" else CombinatoricNode(node, right, comb=False)
 
         return node
 
@@ -491,7 +491,7 @@ class Parser:
             self.eat(Token.TYPE_LPAREN)
             arg = self.expr()
             self.eat(Token.TYPE_RPAREN)
-            return UnaryFunctionNode("ln", arg)
+            return LogNode(arg)
 
         elif func_name == 'root':
             self.eat(func_type)
@@ -527,7 +527,7 @@ class Parser:
                 self.eat(Token.TYPE_LPAREN)
                 antilog_node = self.expr()
                 self.eat(Token.TYPE_RPAREN)
-                return BinaryFunctionNode('log', base_node, antilog_node)
+                return LogNode(antilog_node, base_node)
 
         raise SyntaxError(f"Unknown function type: {func_type}")
 

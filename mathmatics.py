@@ -6,6 +6,8 @@ from typing import Any, Callable
 _MAX_INT_POWER = 10 ** 5              # 整数幂上限
 _MAX_BASE_FOR_ROOT = 10 ** 12         # 分数指数时完全 q 次方判定的底数上限
 
+_MAX_LOG_EXP = 10 ** 5   # 指数上限，避免异常输入导致死循环
+
 _TABLE: dict[tuple[str, type, type], Callable[[Any, Any], Any]] = {}
 
 
@@ -109,14 +111,105 @@ class DecimalNode(Node):
     is_numeric = True
     __slots__ = ("value",)
 
+    _MAX_FRACTION_DEN = 10 ** 4
+
     def __init__(self, value: float):
         self.value = float(value)
+
+    def simplify(self, env: dict | None = None):
+        if self.value == int(self.value):
+            return IntegerNode(int(self.value))
+
+        if env.get("output_mode", "MATH") != "DECIMAL":
+            ratio = _decimal_to_ratio(self.value)
+            if ratio is not None:
+                num, den = ratio
+                if den <= self._MAX_FRACTION_DEN:
+                    return FractionNode(IntegerNode(num), IntegerNode(den))
+
+        return self
 
     def evaluate(self, env=None) -> float:
         return self.value
 
     def to_str(self, parent_prec=0) -> str:
         return str(self.value)
+
+
+def _is_sqrt_node(node: Node) -> bool:
+    """node 是 √n（n > 1 的整数）"""
+    return (isinstance(node, RootNode)
+            and isinstance(node.degree, IntegerNode)
+            and node.degree.value == 2
+            and isinstance(node.radicand, IntegerNode)
+            and node.radicand.value > 1)
+
+
+def _is_rational_value(node: Node) -> bool:
+    """node 是有理数：整数或分数"""
+    if isinstance(node, IntegerNode):
+        return True
+    if isinstance(node, FractionNode):
+        return (isinstance(node.num, IntegerNode)
+                and isinstance(node.den, IntegerNode)
+                and node.den.value > 0)
+    return False
+
+
+def _split_signed(node: Node):
+    """
+    把 node 拆成 (t1, op, t2)：
+    - node 是 a + b → (a, '+', b)
+    - node 是 a - b → (a, '-', b)
+    - node 是单项 → (node, None, None)
+    只处理顶层的加减，不递归。
+    """
+    if isinstance(node, BinaryOpNode) and node.op in ('+', '-'):
+        return node.left, node.op, node.right
+    return node, None, None
+
+
+def _analyze_denominator(den: Node):
+    """
+    分析分母是否可有理化。
+    返回 dict 或 None：
+      {'kind': 'single', 'k': int, 'n': int}       # den = k·√n
+      {'kind': 'pair', 't1': Node, 't2': Node, 'op': str}  # den = t1 ± t2
+    """
+    # 情形 1：单个 √n 或 k·√n
+    if _is_sqrt_node(den):
+        return {'kind': 'single', 'k': 1, 'n': den.radicand.value}
+
+    if isinstance(den, BinaryOpNode) and den.op == "*":
+        for sqrt_side, other_side in ((den.left, den.right), (den.right, den.left)):
+            if _is_sqrt_node(sqrt_side) and isinstance(other_side, IntegerNode):
+                return {'kind': 'single', 'k': other_side.value, 'n': sqrt_side.radicand.value}
+
+    # 情形 2：t1 ± t2
+    t1, op, t2 = _split_signed(den)
+    if op is None or t2 is None:
+        return None
+
+    # 每一项必须是有理数或含至多一个平方根
+    if not (_is_rational_value(t1) or _is_sqrt_node(t1) or _has_single_sqrt(t1)):
+        return None
+    if not (_is_rational_value(t2) or _is_sqrt_node(t2) or _has_single_sqrt(t2)):
+        return None
+
+    # 至少一项必须含平方根，否则分母已经有理
+    if _is_rational_value(t1) and _is_rational_value(t2):
+        return None
+
+    return {'kind': 'pair', 't1': t1, 't2': t2, 'op': op}
+
+
+def _has_single_sqrt(node: Node) -> bool:
+    """node 是 k·√n 形式（k 是整数）"""
+    if isinstance(node, BinaryOpNode) and node.op == "*":
+        for sqrt_side, other_side in ((node.left, node.right), (node.right, node.left)):
+            if _is_sqrt_node(sqrt_side) and isinstance(other_side, IntegerNode):
+                return True
+    return False
 
 
 class FractionNode(Node):
@@ -128,19 +221,92 @@ class FractionNode(Node):
         self.den = denominator
 
     def simplify(self, env=None):
+        env = env or {}
         num = self.num.simplify(env)
         den = self.den.simplify(env)
-        if not isinstance(num, IntegerNode) or not isinstance(den, IntegerNode):
-            return FractionNode(num, den)
+
+        # 分母是有理数：走 gcd 路径
+        if _is_rational_value(den):
+            return self._reduce_to_lowest(num, den)
+
+        # 分母含平方根：尝试有理化
+        rationalized = self._try_rationalize(num, den, env)
+        if rationalized is not None:
+            return rationalized
+
+        # 无法处理：保留
+        if num is self.num and den is self.den:
+            return self
+        return FractionNode(num, den)
+
+    def _reduce_to_lowest(self, num: Node, den: Node) -> Node:
         if den.value == 0:
-            raise ZeroDivisionError("Division by zero")
-        g = math.gcd(num.value, den.value)
-        n, d = num.value // g, den.value // g
-        if d < 0:
-            n, d = -n, -d
-        if d == 1:
-            return IntegerNode(n)
-        return FractionNode(IntegerNode(n), IntegerNode(d))
+            raise ZeroDivisionError("Math Error: division by zero")
+
+        # 分子分母都是整数：直接 gcd
+        if isinstance(num, IntegerNode) and isinstance(den, IntegerNode):
+            g = math.gcd(num.value, den.value) or 1
+            n, d = num.value // g, den.value // g
+            if d < 0:
+                n, d = -n, -d
+            if d == 1:
+                return IntegerNode(n)
+            return FractionNode(IntegerNode(n), IntegerNode(d))
+
+        # 分母是分数：翻转为乘法
+        if isinstance(den, FractionNode):
+            if (isinstance(den.num, IntegerNode) and isinstance(den.den, IntegerNode)
+                    and den.num.value != 0):
+                new_num = FractionNode(num, den.num).simplify()
+                return FractionNode(
+                    new_num.num if isinstance(new_num, FractionNode) else new_num,
+                    IntegerNode(den.den.value) if not isinstance(new_num, FractionNode)
+                    else IntegerNode(new_num.den.value * den.den.value),
+                ).simplify()
+
+        return FractionNode(num, den)
+
+    def _try_rationalize(self, num: Node, den: Node, env) -> Node | None:
+        info = _analyze_denominator(den)
+        if info is None:
+            return None
+
+        if info['kind'] == 'single':
+            return self._rationalize_single(num, info['k'], info['n'], env)
+
+        if info['kind'] == 'pair':
+            return self._rationalize_pair(num, info['t1'], info['t2'], info['op'], env)
+
+        return None
+
+    def _rationalize_single(self, num: Node, k: int, n: int, env) -> Node:
+        """num / (k·√n) → num·√n / (k·n)"""
+        conj = RootNode(IntegerNode(2), IntegerNode(n))
+        new_num = BinaryOpNode(num, conj, "*").simplify(env)
+
+        new_den_value = k * n
+        if new_den_value == 1:
+            return new_num
+        return FractionNode(new_num, IntegerNode(new_den_value)).simplify(env)
+
+    def _rationalize_pair(self, num: Node, t1: Node, t2: Node, op: str, env) -> Node | None:
+        """num / (t1 ± t2) → num·(t1 ∓ t2) / (t1² - t2²)"""
+        conj_op = "-" if op == "+" else "+"
+        conj = BinaryOpNode(t1, t2, conj_op)
+
+        # 新分母：t1² - t2²
+        t1_sq = BinaryOpNode(t1, t1, "*").simplify(env)
+        t2_sq = BinaryOpNode(t2, t2, "*").simplify(env)
+        new_den = BinaryOpNode(t1_sq, t2_sq, "-").simplify(env)
+
+        # 若共轭技巧未能消去平方根，放弃
+        if not _is_rational_value(new_den):
+            return None
+
+        # 新分子
+        new_num = BinaryOpNode(num, conj, "*").simplify(env)
+
+        return FractionNode(new_num, new_den).simplify(env)
 
     def evaluate(self, env=None) -> float:
         d = self.den.evaluate(env)
@@ -321,16 +487,16 @@ def _integer_nth_root(x: int, n: int) -> int:
         return 0
     if x < 2:
         return x
-    lo, hi = 1, 1
-    while hi ** n <= x:
-        hi *= 2
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
+    low, high = 1, 1
+    while high ** n <= x:
+        high *= 2
+    while low < high:
+        mid = (low + high + 1) // 2
         if mid ** n <= x:
-            lo = mid
+            low = mid
         else:
-            hi = mid - 1
-    return lo
+            high = mid - 1
+    return low
 
 
 def _extract_int_pair(frac: FractionNode) -> tuple:
@@ -350,10 +516,13 @@ def _extract_nth_power(radicand: int, n: int) -> tuple:
     outside, inside = 1, radicand
     i = 2
     while True:
+        # if i^n <= inside, i <= inside^(1/n), this line is used to find the upper bound of i
+        # recalculate i_max every loop, this dynamically shrinking upper limit lets the loop exit early
         i_max = _integer_nth_root(inside, n)
         if i > i_max:
             break
         p = i ** n
+        # to find outside, we list all possible i, and see if i^n can divide the radicand
         while inside % p == 0:
             outside *= i
             inside //= p
@@ -364,6 +533,8 @@ def _extract_nth_power(radicand: int, n: int) -> tuple:
 def _int_pow(base: int, exp: int) -> Node | None:
     """整数 ^ 整数，含溢出保护。"""
     if exp == 0:
+        if base == 0:
+            raise ValueError("Math Error: 0^0 is not defined")
         return IntegerNode(1)
     if exp > 0:
         if exp > _MAX_INT_POWER:
@@ -848,6 +1019,230 @@ class RootNode(Node):
         return f"deg({self.degree.to_str()})root({self.radicand.to_str()})"
 
 
+def _integer_power(a: int, b: int) -> int | None:
+    """若 a == b^n（n 为非负整数），返回 n；否则 None。要求 a >= 1, b >= 2。"""
+    if a < 1 or b < 2:
+        return None
+    if a == 1:
+        return 0
+
+    try:
+        est = math.log(a) / math.log(b)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+    n = round(est)
+    if n < 0 or n > _MAX_LOG_EXP:
+        return None
+
+    for dn in (-1, 0, 1):
+        cand = n + dn
+        if 0 <= cand <= _MAX_LOG_EXP and b ** cand == a:
+            return cand
+    return None
+
+
+def _rational_power_match(a: tuple, b: tuple) -> int | None:
+    """判断有理数 a 是否等于有理数 b 的整数次幂。a、b 都是 (num, den)。"""
+    a_num, a_den = a
+    b_num, b_den = b
+
+    if a_num <= 0 or a_den <= 0 or b_num <= 0 or b_den <= 0:
+        return None
+
+    if b_num == 1 and b_den == 1:
+        return 0 if (a_num == 1 and a_den == 1) else None
+
+    n1 = _integer_power(a_num, b_num)
+    n2 = _integer_power(a_den, b_den)
+
+    if n1 is None or n2 is None:
+        return None
+    return n1 if n1 == n2 else None
+
+
+def _decimal_to_ratio(value: float) -> tuple | None:
+    """
+    把浮点数转成精确有理数元组 (num, den)，用字符串解析，不依赖 decimal 模块。
+    例：1.1 → (11, 10)；0.25 → (1, 4)；1e-3 → (1, 1000)。
+    """
+    if not math.isfinite(value):
+        return None
+
+    s = str(value)
+
+    # 科学计数法："1e+20" / "1.5e-3"
+    if 'e' in s or 'E' in s:
+        mant, _, exp_str = s.replace('E', 'e').partition('e')
+        exp = int(exp_str)
+        if '.' in mant:
+            int_p, frac_p = mant.split('.')
+            digits = int_p + frac_p
+            num = int(digits) if digits else 0
+            den = 10 ** len(frac_p) if frac_p else 1
+        else:
+            num = int(mant)
+            den = 1
+        if exp >= 0:
+            num *= 10 ** exp
+        else:
+            den *= 10 ** (-exp)
+    # 普通小数："1.21" / "-0.5"
+    elif '.' in s:
+        int_p, frac_p = s.split('.')
+        negative = int_p.startswith('-')
+        if negative:
+            int_p = int_p[1:]
+        int_val = int(int_p) if int_p else 0
+        frac_val = int(frac_p) if frac_p else 0
+        den = 10 ** len(frac_p) if frac_p else 1
+        num = int_val * den + frac_val
+        if negative:
+            num = -num
+    # 整数
+    else:
+        return int(s), 1
+
+    g = math.gcd(abs(num), den) or 1
+    return num // g, den // g
+
+
+def _node_to_ratio(node: Node) -> tuple | None:
+    """把数值类 Node 转成 (num, den)；其他类型返回 None。"""
+    if isinstance(node, IntegerNode):
+        return (node.value, 1)
+    if isinstance(node, FractionNode):
+        if isinstance(node.num, IntegerNode) and isinstance(node.den, IntegerNode):
+            return (node.num.value, node.den.value)
+        return None
+    if isinstance(node, DecimalNode):
+        return _decimal_to_ratio(node.value)
+    return None
+
+
+def _structurally_equal(a: Node, b: Node) -> bool:
+    """判断两个 Node 结构是否完全一致。"""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, (IntegerNode, DecimalNode)):
+        return a.value == b.value
+    if isinstance(a, VariableNode):
+        return a.name == b.name
+    if isinstance(a, (EulerNode, PiNode)):
+        return True
+    if isinstance(a, NegativeNode):
+        return _structurally_equal(a.child, b.child)
+    if isinstance(a, BinaryOpNode):
+        return (a.op == b.op
+                and _structurally_equal(a.left, b.left)
+                and _structurally_equal(a.right, b.right))
+    if isinstance(a, PowerNode):
+        return (_structurally_equal(a.base, b.base)
+                and _structurally_equal(a.exp, b.exp))
+    if isinstance(a, RootNode):
+        return (_structurally_equal(a.degree, b.degree)
+                and _structurally_equal(a.radicand, b.radicand))
+    if isinstance(a, FractionNode):
+        return (_structurally_equal(a.num, b.num)
+                and _structurally_equal(a.den, b.den))
+    return False
+
+
+class LogNode(Node):
+    __slots__ = ("base", "argument")
+
+    def __init__(self, argument: Node, base: Node = None):
+        # base=None 表示自然对数 ln
+        self.base = base if base is not None else EulerNode()
+        self.argument = argument
+
+    def simplify(self, env=None):
+        env = env or {}
+        b = self.base.simplify(env)
+        a = self.argument.simplify(env)
+
+        result = self._fold_trivial(b, a)
+        if result is not None:
+            return result
+        result = self._fold_power_argument(b, a, env)
+        if result is not None:
+            return result
+        result = self._fold_numeric(b, a)
+        if result is not None:
+            return result
+
+        if b is self.base and a is self.argument:
+            return self
+        return LogNode(a, b)
+
+    def _fold_trivial(self, b: Node, a: Node):
+        if isinstance(a, IntegerNode) and a.value == 1:
+            return IntegerNode(0)
+        if _structurally_equal(a, b):
+            return IntegerNode(1)
+        return None
+
+    def _fold_power_argument(self, b: Node, a: Node, env):
+        """log_b(x^k)：若 x == b 返回 k；若 x == b^n 返回 k·n。"""
+        if not isinstance(a, PowerNode):
+            return None
+        if not isinstance(a.exp, IntegerNode):
+            return None
+
+        k = a.exp.value
+        x = a.base
+
+        if _structurally_equal(x, b):
+            return IntegerNode(k)
+
+        n = self._match_power(x, b)
+        if n is not None:
+            return IntegerNode(k * n)
+        return None
+
+    def _fold_numeric(self, b: Node, a: Node):
+        if isinstance(b, EulerNode):
+            return None
+
+        b_ratio = _node_to_ratio(b)
+        a_ratio = _node_to_ratio(a)
+        if b_ratio is None or a_ratio is None:
+            return None
+
+        n = _rational_power_match(a_ratio, b_ratio)
+        if n is not None:
+            return IntegerNode(n)
+        return None
+
+    def _match_power(self, x, b) -> int | None:
+        x_ratio = _node_to_ratio(x)
+        b_ratio = _node_to_ratio(b)
+        if x_ratio is None or b_ratio is None:
+            return None
+        return _rational_power_match(x_ratio, b_ratio)
+
+    def evaluate(self, env=None):
+        env = env or {}
+        arg = self.argument.evaluate(env)
+        if arg <= 0:
+            raise ValueError("Math Error: Antilogarithm should be positive")
+
+        if isinstance(self.base, EulerNode):
+            return math.log(arg)
+
+        base = self.base.evaluate(env)
+        if base <= 0:
+            raise ValueError("Math Error: Base should be positive")
+        if base == 1:
+            raise ValueError("Math Error: Base should not be 1")
+        return math.log(arg, base)
+
+    def to_str(self, parent_prec: int = 0) -> str:
+        if isinstance(self.base, EulerNode):
+            return f"ln({self.argument.to_str()})"
+        return f"base({self.base.to_str()})log({self.argument.to_str()})"
+
+
 def _reduce_angle_to_first_quadrant(rational_c: tuple[int, int]) -> tuple[int, int, tuple[int, int, int]]:
     """
     返回 (p, q, sign)：
@@ -1196,75 +1591,32 @@ class ArcTrigNode(Node):
         return f"{self.name}({self.argument.to_str()})"
 
 
-class UnaryFunctionNode(Node):
-    __slots__ = ("name", "argument")
+class CombinatoricNode(Node):
+    __slots__ = ("n", "r", "comb")
 
-    def __init__(self, name: str, argument: Node):
-        self.name = name
-        self.argument = argument
+    def __init__(self, n: Node, r: Node, comb: bool = True):
+        self.n = n
+        self.r = r
+        self.comb = comb
 
-    def simplify(self, env=None):
-        a = self.argument.simplify(env)
-        if a is self.argument:
-            return self
-        return UnaryFunctionNode(self.name, a)
+    def simplify(self, env: dict | None = None) -> Node:
+        n = self.n.simplify(env)
+        r = self.r.simplify(env)
 
-    def evaluate(self, env=None) -> float:
-        arg = self.argument.evaluate(env)
+        if not isinstance(n, IntegerNode) or not isinstance(r, IntegerNode):
+            raise ValueError("Math Error: The attribute must be a integer")
+        if n.value < 0 or r.value < 0:
+            raise ValueError("Math Error: arguments must be non-negative")
+        if n.value < r.value:
+            raise ValueError("Math Error: r should not be larger than n in nCr")
 
-        if self.name == "ln":
-            return math.log(arg)
-        if self.name == "sqrt":
-            return math.sqrt(arg)
-        if self.name == "sq":
-            return arg ** 2
-        if self.name == "cbrt":
-            return math.cbrt(arg)
-        if self.name == "cb":
-            return arg ** 3
-        raise ValueError(f"Unknown unary function: {self.name}")
+        return IntegerNode(math.comb(n.value, r.value)) if self.comb else IntegerNode(math.perm(n.value, r.value))
 
-    def to_str(self, parent_prec=0) -> str:
-        return f"{self.name}({self.argument.to_str()})"
+    def evaluate(self, env: dict | None = None):
+        return self.simplify(env).evaluate(env)
 
-
-class BinaryFunctionNode(Node):
-    __slots__ = ("name", "argument1", "argument2")
-
-    def __init__(self, name: str, argument1: Node, argument2: Node):
-        self.name = name
-        self.argument1 = argument1
-        self.argument2 = argument2
-
-    def simplify(self, env=None):
-        a1 = self.argument1.simplify(env)
-        a2 = self.argument2.simplify(env)
-        if a1 is self.argument1 and a2 is self.argument2:
-            return self
-        return BinaryFunctionNode(self.name, a1, a2)
-
-    def evaluate(self, env=None) -> float:
-        a1 = self.argument1.evaluate(env)
-        a2 = self.argument2.evaluate(env)
-
-        if self.name == "log":
-            if a1 <= 0:
-                raise SyntaxError("Math Error: antilogarithm should be larger than 0")
-            return math.log(a2, a1)
-        if self.name == "comb":
-            if a1 < a2:
-                raise SyntaxError("Math Error: r should not be larger than n in nCr")
-            return math.comb(int(a1), int(a2))
-        if self.name == "perm":
-            if a1 < a2:
-                raise SyntaxError("Math Error: r should not be larger than n in nPr")
-            return math.perm(int(a1), int(a2))
-        raise ValueError(f"Unknown binary function: {self.name}")
-
-    def to_str(self, parent_prec=0) -> str:
-        if self.name == "log":
-            return f"base({self.argument1.to_str()})log({self.argument2.to_str()})"
-        return f"{self.name}({self.argument1.to_str()}, {self.argument2.to_str()})"
+    def to_str(self, parent_prec: int = 0) -> str:
+        return f"{self.n.to_str()} comb {self.r.to_str()}" if self.comb else f"{self.n.to_str()} perm {self.r.to_str()}"
 
 
 # =================================================================
