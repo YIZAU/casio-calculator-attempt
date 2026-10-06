@@ -1,6 +1,10 @@
 import tkinter as tk
 from PIL import Image, ImageTk
 
+from pathlib import Path
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+
 
 class Cell:
     def __init__(self, father, name: str, column: int, row: int, image_path: str,
@@ -71,7 +75,7 @@ class UI:
 
         index = 0
         for name in ['S', 'A', 'M', 'X', 'IO', 'D', 'R', 'G', 'FIX', 'SCI']:
-            self.flag_images[name] = ImageTk.PhotoImage(Image.open(f"./image/{name}_on.png").resize((16, 16)), Image.Resampling.LANCZOS)
+            self.flag_images[name] = ImageTk.PhotoImage(Image.open(ASSETS_DIR / f"{name}_on.png").resize((16, 16)), Image.Resampling.LANCZOS)
             self.flags[name] = tk.Label(self.states_bar, image='', anchor='w', bg='#d5e3d4')
             self.flags[name].grid(row=0, column=index)
             index += 1
@@ -122,33 +126,33 @@ class UI:
             ["MENU/SET", None, (5, 1), "yellow", "#999999"],
             ["POWER", None, (6, 1), "yellow", "#999999"],
 
-            ["OPTN", "./image/212.png", (1, 2), "white", "black"],
-            ["CALC", "./image/222.png", (2, 2), "white", "black"],
+            ["OPTN", ASSETS_DIR / "212.png", (1, 2), "white", "black"],
+            ["CALC", ASSETS_DIR / "222.png", (2, 2), "white", "black"],
             ["LEFT", None, (3, 2), "yellow", "#999999"],
             ["RIGHT", None, (4, 2), "yellow", "#999999"],
-            ["integrate", "./image/252.png", (5, 2), "white", "black"],
-            ["x", "./image/262.png", (6, 2), "white", "black"],
+            ["integrate", ASSETS_DIR / "252.png", (5, 2), "white", "black"],
+            ["x", ASSETS_DIR / "262.png", (6, 2), "white", "black"],
 
-            ["fraction", "./image/213.png", (1, 3), "white", "black"],
-            ["sqrt", "./image/223.png", (2, 3), "white", "black"],
-            ["square", "./image/233.png", (3, 3), "white", "black"],
-            ["power", "./image/243.png", (4, 3), "white", "black"],
-            ["log", "./image/253.png", (5, 3), "white", "black"],
-            ["ln", "./image/263.png", (6, 3), "white", "black"],
+            ["fraction", ASSETS_DIR / "213.png", (1, 3), "white", "black"],
+            ["sqrt", ASSETS_DIR / "223.png", (2, 3), "white", "black"],
+            ["square", ASSETS_DIR / "233.png", (3, 3), "white", "black"],
+            ["power", ASSETS_DIR / "243.png", (4, 3), "white", "black"],
+            ["log", ASSETS_DIR / "253.png", (5, 3), "white", "black"],
+            ["ln", ASSETS_DIR / "263.png", (6, 3), "white", "black"],
 
-            ["(-)", "./image/214.png", (1, 4), "white", "black"],
-            ["°'\"", "./image/224.png", (2, 4), "white", "black"],
-            ["f^-1", "./image/234.png", (3, 4), "white", "black"],
-            ["sin", "./image/244.png", (4, 4), "white", "black"],
-            ["cos", "./image/254.png", (5, 4), "white", "black"],
-            ["tan", "./image/264.png", (6, 4), "white", "black"],
+            ["(-)", ASSETS_DIR / "214.png", (1, 4), "white", "black"],
+            ["°'\"", ASSETS_DIR / "224.png", (2, 4), "white", "black"],
+            ["f^-1", ASSETS_DIR / "234.png", (3, 4), "white", "black"],
+            ["sin", ASSETS_DIR / "244.png", (4, 4), "white", "black"],
+            ["cos", ASSETS_DIR / "254.png", (5, 4), "white", "black"],
+            ["tan", ASSETS_DIR / "264.png", (6, 4), "white", "black"],
 
-            ["STO", "./image/215.png", (1, 5), "white", "black"],
-            ["ENG", "./image/225.png", (2, 5), "white", "black"],
-            ["(", "./image/235.png", (3, 5), "white", "black"],
-            [")", "./image/245.png", (4, 5), "white", "black"],
-            ["S_D", "./image/255.png", (5, 5), "white", "black"],
-            ["M+", "./image/265.png", (6, 5), "white", "black"]
+            ["STO", ASSETS_DIR / "215.png", (1, 5), "white", "black"],
+            ["ENG", ASSETS_DIR / "225.png", (2, 5), "white", "black"],
+            ["(", ASSETS_DIR / "235.png", (3, 5), "white", "black"],
+            [")", ASSETS_DIR / "245.png", (4, 5), "white", "black"],
+            ["S_D", ASSETS_DIR / "255.png", (5, 5), "white", "black"],
+            ["M+", ASSETS_DIR / "265.png", (6, 5), "white", "black"]
         ]
 
         for name, image_path, (column, row), fg, bg in L2_data:
@@ -164,26 +168,26 @@ class UI:
         self.L3.pack(anchor='center')
 
         L3_data = [
-            ["7", "./image/311.png", (1, 1), "black", "white", (70, 55)],
-            ["8", "./image/321.png", (2, 1), "black", "white", (70, 55)],
-            ["9", "./image/331.png", (3, 1), "black", "white", (70, 55)],
-            ["DEL", "./image/341.png", (4, 1), "white", "blue", (70, 55)],
-            ["AC", "./image/351.png", (5, 1), "white", "blue", (70, 55)],
-            ["4", "./image/312.png", (1, 2), "black", "white", (70, 55)],
-            ["5", "./image/322.png", (2, 2), "black", "white", (70, 55)],
-            ["6", "./image/332.png", (3, 2), "black", "white", (70, 55)],
-            ["*", "./image/342.png", (4, 2), "black", "white", (70, 55)],
-            ["/", "./image/352.png", (5, 2), "black", "white", (70, 55)],
-            ["1", "./image/313.png", (1, 3), "black", "white", (70, 55)],
-            ["2", "./image/323.png", (2, 3), "black", "white", (70, 55)],
-            ["3", "./image/333.png", (3, 3), "black", "white", (70, 55)],
-            ["+", "./image/343.png", (4, 3), "black", "white", (70, 55)],
-            ["-", "./image/353.png", (5, 3), "black", "white", (70, 55)],
-            ["0", "./image/314.png", (1, 4), "black", "white", (70, 55)],
-            [".", "./image/324.png", (2, 4), "black", "white", (70, 55)],
-            ["x10^", "./image/334.png", (3, 4), "black", "white", (70, 55)],
-            ["Ans", "./image/344.png", (4, 4), "black", "white", (70, 55)],
-            ["=", "./image/354.png", (5, 4), "black", "white", (70, 55)],
+            ["7", ASSETS_DIR / "311.png", (1, 1), "black", "white", (70, 55)],
+            ["8", ASSETS_DIR / "321.png", (2, 1), "black", "white", (70, 55)],
+            ["9", ASSETS_DIR / "331.png", (3, 1), "black", "white", (70, 55)],
+            ["DEL", ASSETS_DIR / "341.png", (4, 1), "white", "blue", (70, 55)],
+            ["AC", ASSETS_DIR / "351.png", (5, 1), "white", "blue", (70, 55)],
+            ["4", ASSETS_DIR / "312.png", (1, 2), "black", "white", (70, 55)],
+            ["5", ASSETS_DIR / "322.png", (2, 2), "black", "white", (70, 55)],
+            ["6", ASSETS_DIR / "332.png", (3, 2), "black", "white", (70, 55)],
+            ["*", ASSETS_DIR / "342.png", (4, 2), "black", "white", (70, 55)],
+            ["/", ASSETS_DIR / "352.png", (5, 2), "black", "white", (70, 55)],
+            ["1", ASSETS_DIR / "313.png", (1, 3), "black", "white", (70, 55)],
+            ["2", ASSETS_DIR / "323.png", (2, 3), "black", "white", (70, 55)],
+            ["3", ASSETS_DIR / "333.png", (3, 3), "black", "white", (70, 55)],
+            ["+", ASSETS_DIR / "343.png", (4, 3), "black", "white", (70, 55)],
+            ["-", ASSETS_DIR / "353.png", (5, 3), "black", "white", (70, 55)],
+            ["0", ASSETS_DIR / "314.png", (1, 4), "black", "white", (70, 55)],
+            [".", ASSETS_DIR / "324.png", (2, 4), "black", "white", (70, 55)],
+            ["x10^", ASSETS_DIR / "334.png", (3, 4), "black", "white", (70, 55)],
+            ["Ans", ASSETS_DIR / "344.png", (4, 4), "black", "white", (70, 55)],
+            ["=", ASSETS_DIR / "354.png", (5, 4), "black", "white", (70, 55)],
         ]
 
         for name, image_path, (column, row), fg, bg, size in L3_data:
