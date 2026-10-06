@@ -1,4 +1,9 @@
 import json
+from pathlib import Path
+
+_SRC_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SRC_DIR.parent
+DATA_DIR = _PROJECT_ROOT / "data"
 
 
 class Settings:
@@ -33,10 +38,10 @@ class Settings:
             }
         }
 
-        with open("./data/settings.json", "r", encoding="utf-8") as f:
+        with open(DATA_DIR / "settings.json", "r", encoding="utf-8") as f:
             self.settings: dict = json.load(f)
 
-        with open("./data/variables.json", "r", encoding="utf-8") as g:
+        with open(DATA_DIR / "variables.json", "r", encoding="utf-8") as g:
             self.variables: dict = json.load(g)
 
         # 存储
@@ -60,5 +65,5 @@ class Settings:
 
     def set_settings(self, target: str, content: int | str):
         self.settings[target] = content
-        with open("./data/settings.json", "w", encoding="utf-8") as f:
+        with open(DATA_DIR / "settings.json", "w", encoding="utf-8") as f:
             json.dump(self.settings, f, indent=4)
