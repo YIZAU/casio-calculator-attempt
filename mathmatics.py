@@ -14,17 +14,14 @@ _TABLE: dict[tuple[str, type, type], Callable[[Any, Any], Any]] = {}
 def register(op: str, lt: type, rt: type, commutative: bool = False):
     def register_rule(func):
         _TABLE[(op, lt, rt)] = func
-
         if commutative and lt is not rt:
             # Auto-generate the reversed entry (a, b) -> fn(b, a)
             _TABLE[(op, rt, lt)] = lambda a, b: func(b, a)
-
         return func
-
     return register_rule
 
 
-def dispatch(op: str, a: Any, b: Any):
+def dispatch(op: str, a: Node, b: Node) -> Node | None:
     """Look up a folding rule; return None if no rule exists."""
     fn = _TABLE.get((op, type(a), type(b)))
     return fn(a, b) if fn else None
@@ -425,6 +422,7 @@ class NegativeNode(Node):
         self.child = child
 
     def simplify(self, env=None):
+        env = env or {}
         c = self.child.simplify(env)
         if isinstance(c, Node) and c.is_numeric:
             r = dispatch("neg", c, c)
@@ -448,14 +446,13 @@ class BinaryOpNode(Node):
         self.op = op  # "+", "-", "*", "/"
 
     def simplify(self, env=None):
+        env = env or {}
         l = self.left.simplify(env)
         r = self.right.simplify(env)
 
-        if (isinstance(l, Node) and l.is_numeric
-                and isinstance(r, Node) and r.is_numeric):
-            res = dispatch(self.op, l, r)
-            if res is not None:
-                return res
+        res = dispatch(self.op, l, r)
+        if res is not None:
+            return res.simplify(env)
 
         if l is self.left and r is self.right:
             return self
@@ -776,6 +773,26 @@ class PowerNode(Node):
         if q <= 1:
             return None
 
+        # 先算 b^p
+        powered = PowerNode(b, IntegerNode(abs(p))).simplify(env)
+        if powered is None:
+            return None
+
+        # 检查是否能开 q 次方
+        ratio = _node_to_ratio(powered)
+        if ratio is None:
+            return None
+        num, den = ratio
+
+        # 分子分母都要有 q 次方因子
+        out_num, in_num = _extract_nth_power(abs(num), q)
+        out_den, in_den = _extract_nth_power(den, q)
+
+        if in_num == abs(num) and in_den == den:
+            # 提取不出任何因子，转换无意义
+            return None
+
+        # 有因子可提取，走根号化简
         if p > 0:
             inner = PowerNode(b, IntegerNode(p)).simplify(env)
             if inner is None:
@@ -1043,19 +1060,25 @@ def _integer_power(a: int, b: int) -> int | None:
 
 
 def _rational_power_match(a: tuple, b: tuple) -> int | None:
-    """判断有理数 a 是否等于有理数 b 的整数次幂。a、b 都是 (num, den)。"""
     a_num, a_den = a
     b_num, b_den = b
 
     if a_num <= 0 or a_den <= 0 or b_num <= 0 or b_den <= 0:
         return None
 
+    # 退化：b = 1
     if b_num == 1 and b_den == 1:
         return 0 if (a_num == 1 and a_den == 1) else None
 
+    # b 是整数：a 的分母必须是 1
+    if b_den == 1:
+        if a_den != 1:
+            return None
+        return _integer_power(a_num, b_num)
+
+    # b 是分数：分子分母分别匹配，指数必须一致
     n1 = _integer_power(a_num, b_num)
     n2 = _integer_power(a_den, b_den)
-
     if n1 is None or n2 is None:
         return None
     return n1 if n1 == n2 else None
@@ -1159,6 +1182,14 @@ class LogNode(Node):
     def simplify(self, env=None):
         env = env or {}
         b = self.base.simplify(env)
+
+        # 提前识别 log_b(b^k)，趁 argument 还是 PowerNode
+        raw = self.argument
+        if isinstance(raw, PowerNode):
+            raw_base = raw.base.simplify(env)
+            if _structurally_equal(raw_base, b):
+                return raw.exp
+
         a = self.argument.simplify(env)
 
         result = self._fold_trivial(b, a)
@@ -1444,30 +1475,79 @@ class TrigNode(Node):
         return f"{self.name}({self.argument.to_str()})"
 
 
+def _extract_square_factor(n: int) -> tuple:
+    """n = outside² · inside，inside 无平方因子。返回 (outside, inside)。"""
+    if n <= 0:
+        return 1, 1
+    outside, inside = 1, n
+    i = 2
+    while i * i <= inside:
+        while inside % (i * i) == 0:
+            outside *= i
+            inside //= i * i
+        i += 1
+    return outside, inside
+
+
 class ArcTrigNode(Node):
     __slots__ = ("name", "argument")
 
-    # 键: 值签名 ("rat", p, q) 或 ("root", n, d)  —— 都是正值
-    # 值: {name: (p, q)}  表示输出 (p/q)·π，None 表示该函数在此值下无特殊角
+    # 键: ("combo", frozenset({(p, q, n), ...}))
+    #     表示值 = Σ (p/q)·√n
+    # 值: {name: (p, q)}  表示输出 (p/q)·π
+    #     None 表示该函数在此值下无特殊角
     _SPECIAL_VALUES = {
-        ("rat", 0, 1):      {"arcsin": (0, 1), "arccos": (1, 2), "arctan": (0, 1)},
-        ("rat", 1, 1):      {"arcsin": (1, 2), "arccos": (0, 1), "arctan": (1, 4)},
-        ("rat", 1, 2):      {"arcsin": (1, 6), "arccos": (1, 3), "arctan": None},
-
-        ("root", 2, 2):     {"arcsin": (1, 4), "arccos": (1, 4), "arctan": None},
-        ("root", 3, 2):     {"arcsin": (1, 3), "arccos": (1, 6), "arctan": None},
-        ("root", 3, 3):     {"arcsin": None,   "arccos": None,   "arctan": (1, 6)},
-        ("root", 3, 1):     {"arcsin": None,   "arccos": None,   "arctan": (1, 3)},
-        ("root", 1, 1):     {"arcsin": None,   "arccos": None,   "arctan": (1, 4)},
+        ("combo", frozenset({(0, 1, 1)})):
+            {
+            "arcsin": (0, 1), "arccos": (1, 2), "arctan": (0, 1),
+            },
+        ("combo", frozenset({(1, 1, 1)})):
+            {
+            "arcsin": (1, 2), "arccos": (0, 1), "arctan": (1, 4),
+            },
+        ("combo", frozenset({(1, 2, 1)})):
+            {
+            "arcsin": (1, 6), "arccos": (1, 3), "arctan": None,
+            },
+        ("combo", frozenset({(1, 2, 2)})):
+            {
+            "arcsin": (1, 4), "arccos": (1, 4), "arctan": None,
+            },
+        ("combo", frozenset({(1, 2, 3)})):
+            {
+            "arcsin": (1, 3), "arccos": (1, 6), "arctan": None,
+            },
+        ("combo", frozenset({(1, 3, 3)})):
+            {
+            "arcsin": None, "arccos": None, "arctan": (1, 6),
+            },
+        ("combo", frozenset({(1, 1, 3)})):
+            {
+            "arcsin": None, "arccos": None, "arctan": (1, 3),
+            },
+        ("combo", frozenset({(1, 4, 6), (-1, 4, 2)})):
+            {
+            "arcsin": (1, 12), "arccos": (5, 12), "arctan": None,
+            },
+        ("combo", frozenset({(1, 4, 6), (1, 4, 2)})):
+            {
+            "arcsin": (5, 12), "arccos": (1, 12), "arctan": None,
+            },
+        ("combo", frozenset({(2, 1, 1), (-1, 1, 3)})):
+            {
+            "arcsin": None, "arccos": None, "arctan": (1, 12),
+            },
+        ("combo", frozenset({(2, 1, 1), (1, 1, 3)})):
+            {
+            "arcsin": None, "arccos": None, "arctan": (5, 12),
+            },
     }
 
     def __init__(self, name: str, argument: Node):
         self.name = name
         self.argument = argument
 
-    # ---------- simplify ----------
-
-    def simplify(self, env: dict = None):
+    def simplify(self, env=None):
         env = env or {}
         arg = self.argument.simplify(env)
 
@@ -1480,16 +1560,12 @@ class ArcTrigNode(Node):
         # 2. 提取值签名
         sig = self._value_signature(arg)
         if sig is None:
-            if arg is self.argument and not negated:
-                return self
-            return ArcTrigNode(self.name, arg)
+            return self._rebuild(arg, negated)
 
         # 3. 查表
         entry = self._SPECIAL_VALUES.get(sig)
         if entry is None or entry.get(self.name) is None:
-            if arg is self.argument and not negated:
-                return self
-            return ArcTrigNode(self.name, arg)
+            return self._rebuild(arg, negated)
 
         p, q = entry[self.name]
 
@@ -1503,79 +1579,117 @@ class ArcTrigNode(Node):
                 p = -p
 
         # 5. 按 angle_unit 输出
-        angle_unit = env.get("angle_unit", "RAD")
-        if angle_unit == "RAD":
+        au = env.get("angle_unit", "RAD")
+        if au == "RAD":
             return self._make_pi_node(p, q)
-        elif angle_unit == "DEG":
+        if au == "DEG":
             return FractionNode(IntegerNode(p * 180), IntegerNode(q)).simplify(env)
-        elif angle_unit == "GRA":
+        if au == "GRA":
             return FractionNode(IntegerNode(p * 200), IntegerNode(q)).simplify(env)
 
-        return ArcTrigNode(self.name, arg)
-
-    # ---------- evaluate ----------
-
-    def evaluate(self, env: dict = None) -> float:
-        env = env or {}
-        arg = self.argument.evaluate(env)
-        angle_unit = env.get("angle_unit", "RAD")
-
-        if self.name == "arcsin":
-            rad = math.asin(arg)
-        elif self.name == "arccos":
-            rad = math.acos(arg)
-        elif self.name == "arctan":
-            rad = math.atan(arg)
-        else:
-            raise ValueError(f"Unknown inverse triangle function: {self.name}")
-
-        if angle_unit == "DEG":
-            return math.degrees(rad)
-        elif angle_unit == "GRA":
-            return rad / math.pi * 200
-        return rad
-
-    # ---------- 辅助 ----------
+        return self._rebuild(arg, negated)
 
     def _value_signature(self, node: Node) -> tuple | None:
-        """返回 ("rat", p, q) 或 ("root", n, d)。正负已由外层剥离。"""
-        # 有理数
+        """
+        返回 ("combo", frozenset({(p, q, n), ...}))
+        表示值 = Σ (p/q) · √n。无法规范化时返回 None。
+        """
+        terms = self._expand_to_terms(node)
+        if terms is None:
+            return None
+
+        merged = self._merge_terms(terms)
+        if not merged:
+            merged = [(0, 1, 1)]      # 零的规范签名
+
+        return ("combo", frozenset(merged))
+
+    def _expand_to_terms(self, node: Node) -> list | None:
+        """把 Node 展开为项列表 [(p, q, n), ...]。"""
+        # 整数
         if isinstance(node, IntegerNode):
-            return ("rat", node.value, 1)
+            return [(node.value, 1, 1)]
 
+        # 分数：分母是有理数
         if isinstance(node, FractionNode):
-            # p/q
-            if isinstance(node.num, IntegerNode) and isinstance(node.den, IntegerNode):
-                p, q = node.num.value, node.den.value
-                g = math.gcd(abs(p), abs(q)) or 1
-                return ("rat", p // g, q // g)
-            # √n / d
-            if isinstance(node.num, RootNode) and isinstance(node.den, IntegerNode):
-                return self._root_signature(node.num, node.den.value)
+            if not isinstance(node.den, IntegerNode):
+                return None
+            d = node.den.value
+            if d == 0:
+                return None
+            num_terms = self._expand_to_terms(node.num)
+            if num_terms is None:
+                return None
+            return [(p, q * d, n) for p, q, n in num_terms]
 
-        # 单个根号 √n
+        # 平方根 √n
         if isinstance(node, RootNode):
-            return self._root_signature(node, 1)
+            if not (isinstance(node.degree, IntegerNode) and node.degree.value == 2):
+                return None
+            if not isinstance(node.radicand, IntegerNode):
+                return None
+            n = node.radicand.value
+            if n < 0:
+                return None
+            outside, inside = _extract_square_factor(n)
+            return [(outside, 1, inside)]
+
+        # 负号
+        if isinstance(node, NegativeNode):
+            inner = self._expand_to_terms(node.child)
+            if inner is None:
+                return None
+            return [(-p, q, n) for p, q, n in inner]
+
+        # 二元运算
+        if isinstance(node, BinaryOpNode):
+            if node.op in ('+', '-'):
+                l = self._expand_to_terms(node.left)
+                r = self._expand_to_terms(node.right)
+                if l is None or r is None:
+                    return None
+                if node.op == '-':
+                    r = [(-p, q, n) for p, q, n in r]
+                return l + r
+
+            if node.op == '*':
+                l = self._expand_to_terms(node.left)
+                r = self._expand_to_terms(node.right)
+                if l is None or r is None:
+                    return None
+                result = []
+                for ap, aq, an in l:
+                    for bp, bq, bn in r:
+                        outside, inside = _extract_square_factor(an * bn)
+                        result.append((ap * bp * outside, aq * bq, inside))
+                return result
 
         return None
 
-    def _root_signature(self, root: RootNode, den: int) -> tuple | None:
-        if not isinstance(root.degree, IntegerNode) or root.degree.value != 2:
-            return None
-        if not isinstance(root.radicand, IntegerNode):
-            return None
-        # 提取平方因子：√8 → 2√2
-        n = root.radicand.value
-        outside = 1
-        i = 2
-        while i * i <= n:
-            while n % (i * i) == 0:
-                outside *= i
-                n //= i * i
-            i += 1
-        return ("root", n, den // math.gcd(outside, den) if outside else den)
+    def _merge_terms(self, terms: list) -> list:
+        """合并同类项（相同根号 n），约分，丢弃零项。"""
+        acc: dict[int, tuple[int, int]] = {}   # n -> (p, q)
+
+        for p, q, n in terms:
+            if n not in acc:
+                acc[n] = (0, 1)
+            ap, aq = acc[n]
+            new_p = ap * q + p * aq
+            new_q = aq * q
+            g = math.gcd(abs(new_p), abs(new_q)) or 1
+            acc[n] = (new_p // g, new_q // g)
+
+        result = []
+        for n, (p, q) in acc.items():
+            if p == 0:
+                continue
+            if q < 0:
+                p, q = -p, -q
+            result.append((p, q, n))
+        return result
 
     def _make_pi_node(self, p: int, q: int) -> Node:
+        """构造 (p/q)·π 的节点。"""
         if p == 0:
             return IntegerNode(0)
         g = math.gcd(abs(p), q) or 1
@@ -1584,8 +1698,40 @@ class ArcTrigNode(Node):
             p, q = -p, -q
 
         numerator = PiNode() if abs(p) == 1 else BinaryOpNode(IntegerNode(abs(p)), PiNode(), "*")
-        result = numerator if q == 1 else FractionNode(numerator, IntegerNode(q))
+        result: Node = numerator if q == 1 else FractionNode(numerator, IntegerNode(q))
         return NegativeNode(result) if p < 0 else result
+
+    def _rebuild(self, arg: Node, negated: bool) -> Node:
+        """未命中表时构造返回值。"""
+        if negated:
+            arg = NegativeNode(arg)
+        if arg is self.argument:
+            return self
+        return ArcTrigNode(self.name, arg)
+
+    def evaluate(self, env=None) -> float:
+        env = env or {}
+        arg = self.argument.evaluate(env)
+        au = env.get("angle_unit", "RAD")
+
+        if self.name == "arcsin":
+            if arg < -1 or arg > 1:
+                raise ValueError("Math Error: arcsin domain is [-1, 1]")
+            rad = math.asin(arg)
+        elif self.name == "arccos":
+            if arg < -1 or arg > 1:
+                raise ValueError("Math Error: arccos domain is [-1, 1]")
+            rad = math.acos(arg)
+        elif self.name == "arctan":
+            rad = math.atan(arg)
+        else:
+            raise ValueError(f"Unknown inverse trig function: {self.name}")
+
+        if au == "DEG":
+            return math.degrees(rad)
+        if au == "GRA":
+            return rad / math.pi * 200
+        return rad
 
     def to_str(self, parent_prec: int = 0) -> str:
         return f"{self.name}({self.argument.to_str()})"
@@ -1622,27 +1768,32 @@ class CombinatoricNode(Node):
 # =================================================================
 
 @register("+", IntegerNode, IntegerNode, commutative=True)
-def _(a, b): return IntegerNode(a.value + b.value)
+def _(a: IntegerNode, b: IntegerNode): return IntegerNode(a.value + b.value)
 
 
 @register("+", IntegerNode, DecimalNode, commutative=True)
-def _(a, b): return DecimalNode(a.value + b.value)
+def _(a: IntegerNode, b: DecimalNode): return DecimalNode(a.value + b.value)
 
 
 @register("+", DecimalNode, DecimalNode, commutative=True)
-def _(a, b): return DecimalNode(a.value + b.value)
+def _(a: DecimalNode, b: DecimalNode): return DecimalNode(a.value + b.value)
 
 
 @register("+", IntegerNode, FractionNode, commutative=True)
-def _(a, b):
+def _(a: IntegerNode, b: FractionNode):
     return FractionNode(
         IntegerNode(a.value * b.den.value + b.num.value),
         b.den,
     ).simplify()
 
 
+@register("+", DecimalNode, FractionNode, commutative=True)
+def _(a: DecimalNode, b: FractionNode):
+    return DecimalNode(a.value + b.evaluate())
+
+
 @register("+", FractionNode, FractionNode, commutative=True)
-def _(a, b):
+def _(a: FractionNode, b: FractionNode):
     return FractionNode(
         IntegerNode(a.num.value * b.den.value + b.num.value * a.den.value),
         IntegerNode(a.den.value * b.den.value),
@@ -1650,62 +1801,80 @@ def _(a, b):
 
 
 @register("+", ComplexNode, ComplexNode, commutative=True)
-def _(a, b):
+def _(a: ComplexNode, b: ComplexNode):
     return ComplexNode(a.real + b.real, a.imag + b.imag)
 
 
 @register("+", ComplexNode, IntegerNode, commutative=True)
-def _(a, b):
+def _(a:ComplexNode, b: IntegerNode):
     return ComplexNode(a.real + b, a.imag)
 
 
 @register("+", ComplexNode, DecimalNode, commutative=True)
-def _(a, b):
+def _(a: ComplexNode, b: DecimalNode):
     return ComplexNode(a.real + b, a.imag)
+
+
+@register("+", LogNode, LogNode)
+def _(a: LogNode, b: LogNode):
+    base_a = a.base.simplify()
+    base_b = b.base.simplify()
+    if _structurally_equal(base_a, base_b):
+        return LogNode(a.argument * b.argument, base_a)
+    return None
 
 
 # ---------- Subtraction ----------
 @register("-", IntegerNode, IntegerNode)
-def _(a, b): return IntegerNode(a.value - b.value)
+def _(a: IntegerNode, b: IntegerNode): return IntegerNode(a.value - b.value)
 
 
 @register("-", IntegerNode, DecimalNode)
-def _(a, b): return DecimalNode(a.value - b.value)
+def _(a: IntegerNode, b: DecimalNode): return DecimalNode(a.value - b.value)
 
 
 @register("-", DecimalNode, IntegerNode)
-def _(a, b): return DecimalNode(a.value - b.value)
+def _(a: DecimalNode, b: IntegerNode): return DecimalNode(a.value - b.value)
 
 
 @register("-", DecimalNode, DecimalNode)
-def _(a, b): return DecimalNode(a.value - b.value)
+def _(a: DecimalNode, b: DecimalNode): return DecimalNode(a.value - b.value)
 
 
 @register("-", ComplexNode, ComplexNode)
-def _(a, b):
+def _(a: ComplexNode, b: ComplexNode):
     return ComplexNode(a.real - b.real, a.imag - b.imag)
 
 
 @register("-", ComplexNode, IntegerNode)
-def _(a, b):
+def _(a: ComplexNode, b: IntegerNode):
     return ComplexNode(a.real - b, a.imag)
+
+
+@register("-", LogNode, LogNode)
+def _(a: LogNode, b: LogNode):
+    base_a = a.base.simplify()
+    base_b = b.base.simplify()
+    if _structurally_equal(base_a, base_b):
+        return LogNode((a.argument / b.argument), base_a)
+    return None
 
 
 # ---------- Multiplication ----------
 @register("*", IntegerNode, IntegerNode, commutative=True)
-def _(a, b): return IntegerNode(a.value * b.value)
+def _(a: IntegerNode, b: IntegerNode): return IntegerNode(a.value * b.value)
 
 
 @register("*", IntegerNode, DecimalNode, commutative=True)
-def _(a, b): return DecimalNode(a.value * b.value)
+def _(a: IntegerNode, b: DecimalNode): return DecimalNode(a.value * b.value)
 
 
 @register("*", DecimalNode, DecimalNode, commutative=True)
-def _(a, b): return DecimalNode(a.value * b.value)
+def _(a: DecimalNode, b: DecimalNode): return DecimalNode(a.value * b.value)
 
 
 @register("*", IntegerNode, FractionNode, commutative=True)
-def _(a, b):
+def _(a: IntegerNode, b: FractionNode):
     return FractionNode(
         IntegerNode(a.value * b.num.value),
         b.den,
@@ -1713,7 +1882,7 @@ def _(a, b):
 
 
 @register("*", FractionNode, FractionNode, commutative=True)
-def _(a, b):
+def _(a: FractionNode, b: FractionNode):
     return FractionNode(
         IntegerNode(a.num.value * b.num.value),
         IntegerNode(a.den.value * b.den.value),
@@ -1721,48 +1890,66 @@ def _(a, b):
 
 
 @register("*", ComplexNode, IntegerNode, commutative=True)
-def _(a, b):
+def _(a: ComplexNode, b: IntegerNode):
     return ComplexNode(a.real * b, a.imag * b)
+
+
+@register("*", RootNode, RootNode, commutative=True)
+def _(a: RootNode, b: RootNode):
+    if not isinstance(a.degree, IntegerNode) or not isinstance(b.degree, IntegerNode):
+        return None
+    if a.degree.value != b.degree.value:
+        return None
+    new_radicand = a.radicand * b.radicand
+    return RootNode(a.degree, new_radicand)
+
+@register("*", PowerNode, PowerNode, commutative=True)
+def _(a: PowerNode, b: PowerNode):
+    base_a = a.base.simplify()
+    base_b = b.base.simplify()
+    if _structurally_equal(base_a, base_b):
+        return PowerNode(base_a, BinaryOpNode(a.exp, b.exp, "+"))
+    return None
 
 
 # ---------- Division ----------
 @register("/", IntegerNode, IntegerNode)
-def _(a, b):
+def _(a: IntegerNode, b: IntegerNode):
     if b.value == 0:
         raise ZeroDivisionError("Division by zero")
     return FractionNode(a, b).simplify()
 
 
 @register("/", DecimalNode, DecimalNode)
-def _(a, b):
+def _(a: DecimalNode, b: DecimalNode):
     if b.value == 0:
         raise ZeroDivisionError("Division by zero")
     return DecimalNode(a.value / b.value)
 
 
 @register("/", IntegerNode, DecimalNode)
-def _(a, b):
+def _(a: IntegerNode, b: DecimalNode):
     if b.value == 0:
         raise ZeroDivisionError("Division by zero")
     return DecimalNode(a.value / b.value)
 
 
 @register("/", DecimalNode, IntegerNode)
-def _(a, b):
+def _(a: DecimalNode, b: IntegerNode):
     if b.value == 0:
         raise ZeroDivisionError("Division by zero")
     return DecimalNode(a.value / b.value)
 
 
 @register("/", FractionNode, IntegerNode)
-def _(a, b):
+def _(a: FractionNode, b: IntegerNode):
     if b.value == 0:
         raise ZeroDivisionError("Division by zero")
     return FractionNode(a.num, IntegerNode(a.den.value * b.value)).simplify()
 
 
 @register("/", IntegerNode, FractionNode)
-def _(a, b):
+def _(a: IntegerNode, b: FractionNode):
     if b.num.value == 0:
         raise ZeroDivisionError("Division by zero")
     return FractionNode(
@@ -1772,7 +1959,7 @@ def _(a, b):
 
 
 @register("/", FractionNode, FractionNode)
-def _(a, b):
+def _(a: FractionNode, b: FractionNode):
     if b.num.value == 0:
         raise ZeroDivisionError("Division by zero")
     return FractionNode(

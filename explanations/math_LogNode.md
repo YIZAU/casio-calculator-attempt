@@ -189,8 +189,21 @@ def _integer_power(a: int, b: int) -> int | None:
 def _rational_power_match(a: tuple, b: tuple) -> int | None:
     a_num, a_den = a
     b_num, b_den = b
+
     if a_num <= 0 or a_den <= 0 or b_num <= 0 or b_den <= 0:
         return None
+
+    # 退化：b = 1
+    if b_num == 1 and b_den == 1:
+        return 0 if (a_num == 1 and a_den == 1) else None
+
+    # b 是整数：a 的分母必须是 1
+    if b_den == 1:
+        if a_den != 1:
+            return None
+        return _integer_power(a_num, b_num)
+
+    # b 是分数：分子分母分别匹配，指数必须一致
     n1 = _integer_power(a_num, b_num)
     n2 = _integer_power(a_den, b_den)
     if n1 is None or n2 is None:
