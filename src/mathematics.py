@@ -117,12 +117,11 @@ class DecimalNode(Node):
         if self.value == int(self.value):
             return IntegerNode(int(self.value))
 
-        if env.get("output_mode", "MATH") != "DECIMAL":
-            ratio = _decimal_to_ratio(self.value)
-            if ratio is not None:
-                num, den = ratio
-                if den <= self._MAX_FRACTION_DEN:
-                    return FractionNode(IntegerNode(num), IntegerNode(den))
+        ratio = _decimal_to_ratio(self.value)
+        if ratio is not None:
+            num, den = ratio
+            if den <= self._MAX_FRACTION_DEN:
+                return FractionNode(IntegerNode(num), IntegerNode(den))
 
         return self
 
