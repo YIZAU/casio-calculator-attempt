@@ -19,13 +19,20 @@ class Displayer:
     COLOR_RESULT = '#333333'
     COLOR_CURSOR = '#0055aa'
 
-    def __init__(self, canvas: tk.Canvas, formulas: FormulaList):
+    def __init__(self, calculator, canvas: tk.Canvas, formulas: FormulaList):
+        self.calculator = calculator
         self.canvas = canvas
         self.formulas = formulas
 
         self._result_text: str | None = None
 
     def render(self, result=None):
+        screen = self.calculator.current_screen
+
+        if screen == "formula":
+            self._render_formula(result)
+
+    def _render_formula(self, result=None):
         """重绘整块 canvas。
 
         result=None   -> 只画表达式，不显示结果

@@ -158,7 +158,7 @@ class UI:
         for name, image_path, (column, row), fg, bg in L2_data:
             Cell(self.L2, name, column, row, image_path,
                  fg=fg, bg=bg, font=('Segoe UI', 12),
-                 command=lambda t=name: self.calculator.handle_input(t))
+                 command=lambda t=name: self.calculator.deal_input(t))
 
     def _initialize_L3(self):
         for i in range(1, 5):
@@ -193,4 +193,4 @@ class UI:
         for name, image_path, (column, row), fg, bg, size in L3_data:
             Cell(self.L3, name, column, row, image_path,
                  size=size, fg=fg, bg=bg, font=('Segoe UI', 20),
-                 command=lambda t=name: self.calculator.handle_input(t))
+                 command=lambda t=name: self.calculator.deal_input(t))

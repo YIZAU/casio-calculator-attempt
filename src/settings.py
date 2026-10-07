@@ -62,8 +62,3 @@ class Settings:
     def turn_off_alpha_mode(self) -> False:
         self.alpha_mode = False
         return False
-
-    def set_settings(self, target: str, content: int | str):
-        self.settings[target] = content
-        with open(DATA_DIR / "settings.json", "w", encoding="utf-8") as f:
-            json.dump(self.settings, f, indent=4)

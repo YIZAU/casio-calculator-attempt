@@ -1,0 +1,54 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyCompatibilityInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ourVersions">
+        <value>
+          <list size="1">
+            <item index="0" class="java.lang.String" itemvalue="3.12" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="W605" />
+          <option value="E302" />
+          <option value="E501" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N802" />
+          <option value="N806" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="Lucky.subject.thread1" />
+          <option value="Lucky.subject.thread2" />
+          <option value="tuple.*" />
+          <option value="Programs.Calculator.controller.FormulaNode.number" />
+          <option value="Calculator.engine.Node.value" />
+          <option value="Calculator.mathmatics.Node.value" />
+          <option value="Calculator.mathmatics.Node.name" />
+          <option value="Calculator.mathmatics.Node.child" />
+          <option value="Calculator.mathmatics.Node.left" />
+          <option value="Calculator.mathmatics.Node.right" />
+          <option value="Calculator.mathmatics.Node.exp" />
+          <option value="Calculator.mathmatics.Node.base" />
+          <option value="Calculator.mathmatics.Node.*" />
+          <option value="Calculator.src.mathematics.Node.radicand" />
+          <option value="Calculator.src.mathematics.Node.*" />
+          <option value="mathematics.Node.radicand" />
+          <option value="mathematics.Node.*" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

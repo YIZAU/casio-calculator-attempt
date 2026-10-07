@@ -16,16 +16,22 @@ class Calculator:
         self.root.resizable(False, False)
 
         self.settings = Settings(self)
-
         self.ui = UI(self)
         self.ui.initialize()
-
         self.formulas = FormulaList(self)
-        self.displayer = Displayer(self.ui.canvas, self.formulas)  # ← 提前
+        self.displayer = Displayer(self, self.ui.canvas, self.formulas)  # ← 提前
         self.controller = Controller(self, self.formulas)
         self.engine = Engine(self)
 
-    def handle_input(self, key_name: str):
+        self.current_screen = "formula"
+
+    def deal_input(self, key_name: str):
+        screen = self.current_screen
+
+        if screen == "formula":
+            self._deal_formula_input(key_name)
+
+    def _deal_formula_input(self, key_name: str):
         if self.settings.running:
             # 特殊按键在主程序中处理
             if key_name == "SHIFT":
@@ -60,12 +66,12 @@ class Calculator:
             else:
                 if self.settings.shift_mode:
                     self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-                    self.controller.handle_input(key_name, shift_mode=True)
+                    self.controller.handle_formula_input(key_name, shift_mode=True)
                 elif self.settings.alpha_mode:
                     self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-                    self.controller.handle_input(key_name, alpha_mode=True)
+                    self.controller.handle_formula_input(key_name, alpha_mode=True)
                 else:
-                    self.controller.handle_input(key_name)
+                    self.controller.handle_formula_input(key_name)
 
         elif key_name == "POWER":
             self._turn_off_shift_and_alpha()
@@ -73,7 +79,7 @@ class Calculator:
 
     def calculate(self, shift_mode: bool):
         expression = self.controller.get_expression()
-        formulas, error = self.engine.evaluate(expression)
+        formulas, error = self.engine.calculate(expression)
 
         if error:
             print(error)
@@ -81,9 +87,7 @@ class Calculator:
             self.controller.save_history(expression)
 
         self.controller.clear()
-        # ------------------------------------------------------------------------------------
         self.displayer.render(result=(error if error else formulas))
-        # ------------------------------------------------------------------------------------
 
     def restart(self):
         self._turn_off_shift_and_alpha()

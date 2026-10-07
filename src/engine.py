@@ -288,6 +288,8 @@ class Engine:
         self.calculator: Calculator = calculator
         self.ans = None
 
+        self.env = self._initialize_environment()
+
     def parse(self, expression: str) -> Node:
         """解析表达式，返回 AST"""
         # 预处理
@@ -310,7 +312,7 @@ class Engine:
 
         return parser.expr()  # 直接调用 expr() 解析
 
-    def evaluate(self, expression: str) -> tuple:
+    def calculate(self, expression: str) -> tuple:
         if not expression or expression.strip() == '':
             return IntegerNode(0), None
 
@@ -320,7 +322,7 @@ class Engine:
             ast = self.parse(expression)
 
             # 2. simplify the result AST
-            result = ast.simplify(env=self.package_environment())
+            result = ast.simplify(env=self.env)
 
             # 3. update tha history
             formulas = result.to_str()
@@ -336,7 +338,7 @@ class Engine:
         except Exception as e:
             return 'Error', str(e)
 
-    def package_environment(self) -> dict:
+    def _initialize_environment(self) -> dict:
         env = {}
         for variable_name, formulas in self.calculator.settings.variables.items():
             # print(variable_name, formulas)

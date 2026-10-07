@@ -22,7 +22,7 @@ def RAD_env():
 
 def num(node):
     """把 simplify 结果转成 float，用于数值比较。"""
-    return node.evaluate()
+    return node.calculate()
 
 def close(a, b, tol=1e-9):
     """浮点数近似比较。"""

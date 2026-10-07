@@ -123,7 +123,6 @@ class FormulaList:
                     self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
                     self.index -= 2
 
-
     def add_logarithm(self):
         self.insert_at_index(FormulaNode("base(", FormulaNode.TYPE_LOG_BASE))
         self.insert_at_index(FormulaNode(")log(", FormulaNode.TYPE_LOG_START))
@@ -432,7 +431,7 @@ class Controller:
             ("alpha", "M_PLUS"): (self.formulas.add_variable, ("M",)),
         }
 
-    def handle_input(self, key_name: str, shift_mode=False, alpha_mode=False):
+    def handle_formula_input(self, key_name: str, shift_mode=False, alpha_mode=False):
         current_mode = "normal"
         if shift_mode:
             current_mode = "shift"
