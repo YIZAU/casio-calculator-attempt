@@ -321,7 +321,6 @@ class Engine:
 
             # 2. simplify the result AST
             result = ast.simplify(env=self.package_environment())
-            print(result)    # temporary display, used for debugging
 
             # 3. update tha history
             formulas = result.to_str()

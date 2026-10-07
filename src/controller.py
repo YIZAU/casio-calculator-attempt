@@ -1,20 +1,20 @@
 class FormulaNode:
-    TYPE_NUMBER = 'number'
-    TYPE_VARIABLE = 'variable'
-    TYPE_SIGN = 'sign'
-    TYPE_FUNCTION = 'function'
-    TYPE_FRACTION = 'fraction'
+    TYPE_NUMBER = "number"
+    TYPE_VARIABLE = "variable"
+    TYPE_SIGN = "sign"
+    TYPE_FUNCTION = "function"
+    TYPE_FRACTION = "fraction"
 
-    TYPE_POWER_START = 'power_start'
-    TYPE_POWER_END = 'power_end'
+    TYPE_POWER_START = "power_start"
+    TYPE_POWER_END = "power_end"
 
-    TYPE_ROOT_DEGREE = 'root_degree'
-    TYPE_ROOT_START = 'root_start'
-    TYPE_ROOT_END = 'root_end'
+    TYPE_ROOT_DEGREE = "root_degree"
+    TYPE_ROOT_START = "root_start"
+    TYPE_ROOT_END = "root_end"
 
-    TYPE_LOG_BASE = 'log_base'
-    TYPE_LOG_START = 'log_start'
-    TYPE_LOG_END = 'log_end'
+    TYPE_LOG_BASE = "log_base"
+    TYPE_LOG_START = "log_start"
+    TYPE_LOG_END = "log_end"
 
     def __init__(self, text: str, node_type: str):
         self.text = text
@@ -80,10 +80,10 @@ class FormulaList:
         if base:
             if base == 'e':
                 self.insert_at_index(FormulaNode('e', FormulaNode.TYPE_VARIABLE))
-            elif base == '10':
-                self.insert_at_index(FormulaNode('10', FormulaNode.TYPE_NUMBER))
+            elif base == "10":
+                self.insert_at_index(FormulaNode("10", FormulaNode.TYPE_NUMBER))
 
-        self.insert_at_index(FormulaNode('^(', FormulaNode.TYPE_POWER_START))
+        self.insert_at_index(FormulaNode("^(", FormulaNode.TYPE_POWER_START))
 
         if exp:
             self.insert_at_index(FormulaNode(exp, FormulaNode.TYPE_NUMBER))
@@ -94,29 +94,39 @@ class FormulaList:
         self.index -= 1  # 未指定指数时，指针回到指数上
 
     def add_root(self, degree: int = None, sqrt: bool = True):
-        if not sqrt:
+        if sqrt:
+            self.insert_at_index(FormulaNode("root(", FormulaNode.TYPE_ROOT_START))
+            self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+            self.index -= 1
+        else:
             if degree:
-                self.insert_at_index(FormulaNode('deg(', FormulaNode.TYPE_ROOT_DEGREE))
+                self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
                 # degree 的值: 2 | 3 | None
                 self.insert_at_index(FormulaNode(str(degree), FormulaNode.TYPE_NUMBER))
+                self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
+                self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+                self.index -= 1
             else:
-                if self.index > 0 and self.nodes[self.index - 1].node_type in (
-                        FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
+                if self.index > 0 and self.nodes[self.index - 1].node_type in (FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
                     deg_start = self._find_continuous_value_before_cursor()
                     now_index = self.index
 
                     self.index = deg_start
-                    self.insert_at_index(FormulaNode('deg(', FormulaNode.TYPE_ROOT_DEGREE))
+                    self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
                     self.index = now_index + 1
-            self.insert_at_index(FormulaNode(')root(', FormulaNode.TYPE_ROOT_START))
-        else:
-            self.insert_at_index(FormulaNode('root(', FormulaNode.TYPE_ROOT_START))
-        self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
-        self.index -= 1
+                    self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
+                    self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+                    self.index -= 1
+                else:
+                    self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
+                    self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
+                    self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+                    self.index -= 2
+
 
     def add_logarithm(self):
-        self.insert_at_index(FormulaNode('base(', FormulaNode.TYPE_LOG_BASE))
-        self.insert_at_index(FormulaNode(')log(', FormulaNode.TYPE_LOG_START))
+        self.insert_at_index(FormulaNode("base(", FormulaNode.TYPE_LOG_BASE))
+        self.insert_at_index(FormulaNode(")log(", FormulaNode.TYPE_LOG_START))
         self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_LOG_END))
         self.index -= 2
 
@@ -284,8 +294,7 @@ class FormulaList:
         # 指针前是 LogStart
         elif self.nodes[self.index - 1].node_type == FormulaNode.TYPE_LOG_START:
             # 底数与真数全为空，全部删除
-            if self.nodes[self.index].node_type == FormulaNode.TYPE_LOG_END and self.nodes[
-                self.index - 2].node_type == FormulaNode.TYPE_LOG_BASE:
+            if self.nodes[self.index].node_type == FormulaNode.TYPE_LOG_END and self.nodes[self.index - 2].node_type == FormulaNode.TYPE_LOG_BASE:
                 self.index -= 2
                 del self.nodes[self.index: self.index + 3]
             # 底数与真数非全为空，底数为空，光标移至底数，不删除
@@ -300,8 +309,7 @@ class FormulaList:
         # 指针前是 LogEnd
         elif self.nodes[self.index - 1].node_type == FormulaNode.TYPE_LOG_END:
             # 底数与真数全为空，全部删除
-            if self.nodes[self.index - 2].node_type == FormulaNode.TYPE_LOG_START and self.nodes[
-                self.index - 3].node_type == FormulaNode.TYPE_LOG_BASE:
+            if self.nodes[self.index - 2].node_type == FormulaNode.TYPE_LOG_START and self.nodes[self.index - 3].node_type == FormulaNode.TYPE_LOG_BASE:
                 self.index -= 3
                 del self.nodes[self.index: self.index + 3]
             # 底数与真数非全为空，真数为空，光标移至真数，不删除
@@ -330,16 +338,10 @@ class FormulaList:
                     return j, i
             i += 1
 
-    def display_in_cmd(self):
-        expression = "".join(node.to_str() for node in self.nodes[:self.index])
-        expression += '|'
-        expression += "".join(node.to_str() for node in self.nodes[self.index:])
-        print('>> ' + expression)
-        # ------------------------------------------------------------------------------------
+    def refresh(self):
         displayer = getattr(self.calculator, "displayer", None)
         if displayer is not None:
             displayer.render()
-        # ------------------------------------------------------------------------------------
 
 
 class History:
@@ -375,122 +377,121 @@ class Controller:
 
         self.history = History(self)
 
-        self.variables_table = {
-            "(-)": 'A',
-            "°'\"": 'B',
-            "f^-1": 'C',
-            "sin": 'D',
-            "cos": 'E',
-            "tan": 'F',
-            ")": 'x',
-            "S_D": 'y',
-            "M+": 'M'
-        }
-        self.shift_table = {
-            "sin": 'arcsin',
-            "cos": 'arccos',
-            "tan": 'arctan',
-            "square": 'cube',
-            "sqrt": 'cbrt',
-            "ln": 'e^',
-            "log": '10^',
-            "power": 'root',
-            "f^-1": '!',
-            "*": 'perm',
-            "/": 'comb'
+        self._INPUT_TABLE = {
+            ("normal", "0"): (self.formulas.add_number, ("0",)),
+            ("normal", "."): (self.formulas.add_number, (".",)),
+            ("normal", "1"): (self.formulas.add_number, ("1",)),
+            ("normal", "2"): (self.formulas.add_number, ("2",)),
+            ("normal", "3"): (self.formulas.add_number, ("3",)),
+            ("normal", "4"): (self.formulas.add_number, ("4",)),
+            ("normal", "5"): (self.formulas.add_number, ("5",)),
+            ("normal", "6"): (self.formulas.add_number, ("6",)),
+            ("normal", "7"): (self.formulas.add_number, ("7",)),
+            ("normal", "8"): (self.formulas.add_number, ("8",)),
+            ("normal", "9"): (self.formulas.add_number, ("9",)),
+            ("normal", "+"): (self.formulas.add_sign, ("+",)),
+            ("normal", "-"): (self.formulas.add_sign, ("-",)),
+            ("normal", "*"): (self.formulas.add_sign, ("*",)),
+            ("normal", "/"): (self.formulas.add_sign, ("/",)),
+            ("normal", "("): (self.formulas.add_sign, ("(",)),
+            ("normal", ")"): (self.formulas.add_sign, (")",)),
+            ("normal", "SIN"): (self.formulas.add_function, ("sin",)),
+            ("normal", "COS"): (self.formulas.add_function, ("cos",)),
+            ("normal", "TAN"): (self.formulas.add_function, ("tan",)),
+            ("normal", "LN"): (self.formulas.add_function, ("ln",)),
+            ("normal", "LOG"): (self.formulas.add_logarithm, ()),
+            ("normal", "SQR"): (self._deal_power, ("square",)),
+            ("normal", "POW"): (self._deal_power, ("power",)),
+            ("normal", "EXP"): (self._deal_power, ("x10^",)),
+            ("normal", "INV"): (self._deal_power, ("f^-1",)),
+            ("normal", "SQRT"): (self.formulas.add_root, (None,)),
+            ("normal", "X"): (self.formulas.add_variable, ("x",)),
+
+            ("shift", "EXP"): (self.formulas.add_variable, ("π",)),
+            ("shift", "SIN"): (self.formulas.add_function, ("arcsin",)),
+            ("shift", "COS"): (self.formulas.add_function, ("arccos",)),
+            ("shift", "TAN"): (self.formulas.add_function, ("arctan",)),
+            ("shift", "SQR"): (self._deal_power, ("cube",)),
+            ("shift", "LN"): (self._deal_power, ("e^",)),
+            ("shift", "LOG"): (self._deal_power, ("10^",)),
+            ("shift", "SQRT"): (self.formulas.add_root, (3, False)),
+            ("shift", "POW"): (self.formulas.add_root, (None, False)),
+            ("shift", "INV"): (self.formulas.add_sign, ("!",)),
+            ("shift", "*"): (self.formulas.add_sign, ("perm",)),
+            ("shift", "/"): (self.formulas.add_sign, ("comb",)),
+
+            ("alpha", "EXP"): (self.formulas.add_variable, ("e",)),
+            ("alpha", "NEG"): (self.formulas.add_variable, ("A",)),
+            ("alpha", "DMS"): (self.formulas.add_variable, ("B",)),
+            ("alpha", "INV"): (self.formulas.add_variable, ("C",)),
+            ("alpha", "SIN"): (self.formulas.add_variable, ("D",)),
+            ("alpha", "COS"): (self.formulas.add_variable, ("E",)),
+            ("alpha", "TAN"): (self.formulas.add_variable, ("F",)),
+            ("alpha", ")"): (self.formulas.add_variable, ("x",)),
+            ("alpha", "S2D"): (self.formulas.add_variable, ("y",)),
+            ("alpha", "M_PLUS"): (self.formulas.add_variable, ("M",)),
         }
 
-    def deal_input(self, key_name: str, shift_mode=False, alpha_mode=False):
+    def handle_input(self, key_name: str, shift_mode=False, alpha_mode=False):
+        current_mode = "normal"
         if shift_mode:
-            if key_name == 'x10^':
-                self.formulas.add_variable('π')
-            elif key_name in ['sin', 'cos', 'tan']:
-                self.formulas.add_function(self.shift_table[key_name])
-            elif key_name in ['square', 'ln', 'log']:
-                self._deal_power(self.shift_table[key_name])
-            elif key_name in ['sqrt', 'power']:
-                self._deal_root(self.shift_table[key_name])
-            elif key_name in ['f^-1', '*', '/']:
-                self.formulas.add_sign(self.shift_table[key_name])
-        elif alpha_mode:
-            if key_name == 'x10^':
-                self.formulas.add_variable('e')
-            elif key_name in self.variables_table.keys():
-                self.formulas.add_variable(self.variables_table[key_name])
-        else:
-            if key_name in ['0', '.', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
-                self.formulas.add_number(key_name)
-            elif key_name in ['+', '-', '*', '/', '(', ')']:
-                self.formulas.add_sign(key_name)
-            elif key_name in ['sin', 'cos', 'tan', 'ln']:
-                self.formulas.add_function(key_name)
-            elif key_name == 'log':
-                self.formulas.add_logarithm()
-            elif key_name in ['square', 'power', 'x10^', 'f^-1']:
-                self._deal_power(key_name)
-            elif key_name == 'sqrt':
-                self._deal_root(key_name)
-            elif key_name == 'x':
-                self.formulas.add_variable('x')
+            current_mode = "shift"
+        if alpha_mode:
+            current_mode = "alpha"
 
-        self.formulas.display_in_cmd()
+        func, args = self._INPUT_TABLE.get((current_mode, key_name), None)
+        if func is None:
+            return
+        func(*args)
+
+        self.formulas.refresh()
 
     def _deal_power(self, msg: str):
         # 不允许连续幂
-        if msg in ['square', 'cube', 'power', 'f^-1']:
+        if msg in ["square", "cube", "power", "f^-1", "x10^"]:
             if (self.formulas.index > 0 and
                     self.formulas.nodes[self.formulas.index - 1].node_type in (
                             FormulaNode.TYPE_POWER_END, FormulaNode.TYPE_POWER_START)):
                 return
-        if msg == 'square':
+        if msg == "square":
             self.formulas.add_power(exp='2')
-        elif msg == 'cube':
+        elif msg == "cube":
             self.formulas.add_power(exp='3')
-        elif msg == 'e^':
+        elif msg == "e^":
             self.formulas.add_power(base='e')
-        elif msg == '10^':
+        elif msg == "10^":
             self.formulas.add_power(base='10')
-        elif msg == 'power':
+        elif msg == "power":
             self.formulas.add_power()
-        elif msg == 'x10^':
+        elif msg == "x10^":
             self.formulas.add_sign('*')
             self.formulas.add_power(base='10')
-        elif msg == 'f^-1':
+        elif msg == "f^-1":
             self.formulas.add_power(exp='-1')
 
-    def _deal_root(self, msg: str):
-        if msg == 'sqrt':
-            self.formulas.add_root(degree=2)
-        elif msg == 'cbrt':
-            self.formulas.add_root(degree=3, sqrt=False)
-        elif msg == 'root':
-            self.formulas.add_root(sqrt=False)
-
     def move_cursor(self, msg: str):
-        if msg == 'RIGHT':
+        if msg == "RIGHT":
             self.formulas.move_right()
-        elif msg == 'LEFT':
+        elif msg == "LEFT":
             self.formulas.move_left()
-        elif msg == 'UP':
+        elif msg == "UP":
             pass
-        elif msg == 'DOWN':
+        elif msg == "DOWN":
             pass
 
-        self.formulas.display_in_cmd()
+        self.formulas.refresh()
 
     def save_history(self, formulas: str):
         self.history.save(formulas)
 
     def clear(self):
         self.formulas.clear()
-        # ------------------------------------------------------------------------------------
-        self.formulas.display_in_cmd()
-        # ------------------------------------------------------------------------------------
+        self.formulas.refresh()
 
     def delete(self):
         self.formulas.delete()
 
-        self.formulas.display_in_cmd()
+        self.formulas.refresh()
 
     def get_expression(self) -> str:
         return self.formulas.to_str()

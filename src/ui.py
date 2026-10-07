@@ -130,29 +130,29 @@ class UI:
             ["CALC", ASSETS_DIR / "222.png", (2, 2), "white", "black"],
             ["LEFT", None, (3, 2), "yellow", "#999999"],
             ["RIGHT", None, (4, 2), "yellow", "#999999"],
-            ["integrate", ASSETS_DIR / "252.png", (5, 2), "white", "black"],
-            ["x", ASSETS_DIR / "262.png", (6, 2), "white", "black"],
+            ["INTEGRATE", ASSETS_DIR / "252.png", (5, 2), "white", "black"],
+            ["X", ASSETS_DIR / "262.png", (6, 2), "white", "black"],
 
-            ["fraction", ASSETS_DIR / "213.png", (1, 3), "white", "black"],
-            ["sqrt", ASSETS_DIR / "223.png", (2, 3), "white", "black"],
-            ["square", ASSETS_DIR / "233.png", (3, 3), "white", "black"],
-            ["power", ASSETS_DIR / "243.png", (4, 3), "white", "black"],
-            ["log", ASSETS_DIR / "253.png", (5, 3), "white", "black"],
-            ["ln", ASSETS_DIR / "263.png", (6, 3), "white", "black"],
+            ["FRAC", ASSETS_DIR / "213.png", (1, 3), "white", "black"],
+            ["SQRT", ASSETS_DIR / "223.png", (2, 3), "white", "black"],
+            ["SQR", ASSETS_DIR / "233.png", (3, 3), "white", "black"],
+            ["POW", ASSETS_DIR / "243.png", (4, 3), "white", "black"],
+            ["LOG", ASSETS_DIR / "253.png", (5, 3), "white", "black"],
+            ["LN", ASSETS_DIR / "263.png", (6, 3), "white", "black"],
 
-            ["(-)", ASSETS_DIR / "214.png", (1, 4), "white", "black"],
-            ["°'\"", ASSETS_DIR / "224.png", (2, 4), "white", "black"],
-            ["f^-1", ASSETS_DIR / "234.png", (3, 4), "white", "black"],
-            ["sin", ASSETS_DIR / "244.png", (4, 4), "white", "black"],
-            ["cos", ASSETS_DIR / "254.png", (5, 4), "white", "black"],
-            ["tan", ASSETS_DIR / "264.png", (6, 4), "white", "black"],
+            ["NEG", ASSETS_DIR / "214.png", (1, 4), "white", "black"],
+            ["DMS", ASSETS_DIR / "224.png", (2, 4), "white", "black"],
+            ["INV", ASSETS_DIR / "234.png", (3, 4), "white", "black"],
+            ["SIN", ASSETS_DIR / "244.png", (4, 4), "white", "black"],
+            ["COS", ASSETS_DIR / "254.png", (5, 4), "white", "black"],
+            ["TAN", ASSETS_DIR / "264.png", (6, 4), "white", "black"],
 
             ["STO", ASSETS_DIR / "215.png", (1, 5), "white", "black"],
             ["ENG", ASSETS_DIR / "225.png", (2, 5), "white", "black"],
             ["(", ASSETS_DIR / "235.png", (3, 5), "white", "black"],
             [")", ASSETS_DIR / "245.png", (4, 5), "white", "black"],
-            ["S_D", ASSETS_DIR / "255.png", (5, 5), "white", "black"],
-            ["M+", ASSETS_DIR / "265.png", (6, 5), "white", "black"]
+            ["S2D", ASSETS_DIR / "255.png", (5, 5), "white", "black"],
+            ["M_PLUS", ASSETS_DIR / "265.png", (6, 5), "white", "black"]
         ]
 
         for name, image_path, (column, row), fg, bg in L2_data:
@@ -185,8 +185,8 @@ class UI:
             ["-", ASSETS_DIR / "353.png", (5, 3), "black", "white", (70, 55)],
             ["0", ASSETS_DIR / "314.png", (1, 4), "black", "white", (70, 55)],
             [".", ASSETS_DIR / "324.png", (2, 4), "black", "white", (70, 55)],
-            ["x10^", ASSETS_DIR / "334.png", (3, 4), "black", "white", (70, 55)],
-            ["Ans", ASSETS_DIR / "344.png", (4, 4), "black", "white", (70, 55)],
+            ["EXP", ASSETS_DIR / "334.png", (3, 4), "black", "white", (70, 55)],
+            ["ANS", ASSETS_DIR / "344.png", (4, 4), "black", "white", (70, 55)],
             ["=", ASSETS_DIR / "354.png", (5, 4), "black", "white", (70, 55)],
         ]
 

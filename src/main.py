@@ -60,12 +60,12 @@ class Calculator:
             else:
                 if self.settings.shift_mode:
                     self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-                    self.controller.deal_input(key_name, shift_mode=True)
+                    self.controller.handle_input(key_name, shift_mode=True)
                 elif self.settings.alpha_mode:
                     self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-                    self.controller.deal_input(key_name, alpha_mode=True)
+                    self.controller.handle_input(key_name, alpha_mode=True)
                 else:
-                    self.controller.deal_input(key_name)
+                    self.controller.handle_input(key_name)
 
         elif key_name == "POWER":
             self._turn_off_shift_and_alpha()

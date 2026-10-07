@@ -423,10 +423,19 @@ class NegativeNode(Node):
     def simplify(self, env=None):
         env = env or {}
         c = self.child.simplify(env)
-        if isinstance(c, Node) and c.is_numeric:
-            r = dispatch("neg", c, c)
-            if r is not None:
-                return r
+
+        if isinstance(c, FractionNode):
+            return FractionNode(IntegerNode(-c.num.value), c.den).simplify(env)
+        if isinstance(c, IntegerNode):
+            return IntegerNode(-1 * c.value)
+        if isinstance(c, DecimalNode):
+            return DecimalNode(-1.0 * c.value)
+
+        if isinstance(c, NegativeNode):
+            return c.child
+
+        if c is self.child:
+            return self
         return NegativeNode(c)
 
     def evaluate(self, env=None) -> float:
@@ -926,6 +935,7 @@ class RootNode(Node):
 
     def _fold_negative_radicand(self, n, e: Node, env):
         """n√(-x) = -n√x（n 奇）；n 偶时实数模式报错"""
+        e = e.simplify(env)
         if not isinstance(e, NegativeNode):
             return None
         if n % 2 == 0:
