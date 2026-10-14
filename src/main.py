@@ -4,7 +4,7 @@ from settings import Settings
 from ui import UI
 from controller import Controller, FormulaList
 from engine import Engine
-from displayer import Displayer
+from displayer import ScreenManager
 
 
 class Calculator:
@@ -19,17 +19,18 @@ class Calculator:
         self.ui = UI(self)
         self.ui.initialize()
         self.formulas = FormulaList(self)
-        self.displayer = Displayer(self, self.ui.canvas, self.formulas)  # ← 提前
+        self.screen_manager = ScreenManager(self, self.ui.canvas)
         self.controller = Controller(self, self.formulas)
         self.engine = Engine(self)
 
-        self.current_screen = "formula"
-
     def deal_input(self, key_name: str):
-        screen = self.current_screen
+        screen = self.screen_manager.get_current_screen()
 
         if screen == "formula":
             self._deal_formula_input(key_name)
+        elif screen == "variable":
+            pass
+            # self
 
     def _deal_formula_input(self, key_name: str):
         if self.settings.running:
@@ -59,7 +60,7 @@ class Calculator:
                 else:
                     self.controller.delete()
             elif key_name == "=":
-                self.calculate(self.settings.shift_mode)
+                self.calculate()
             elif key_name in ["UP", "DOWN", "LEFT", "RIGHT"]:
                 self.controller.move_cursor(key_name)
 
@@ -77,17 +78,23 @@ class Calculator:
             self._turn_off_shift_and_alpha()
             self.settings.running = True
 
-    def calculate(self, shift_mode: bool):
+    def render(self):
+        self.screen_manager.render()
+
+    def calculate(self):
         expression = self.controller.get_expression()
         formulas, error = self.engine.calculate(expression)
 
+        formula_screen = self.screen_manager.screens["formula"]
+
         if error:
-            print(error)
+            formula_screen.show_result(error)
         else:
+            formula_screen.show_result(formulas)
             self.controller.save_history(expression)
 
         self.controller.clear()
-        self.displayer.render(result=(error if error else formulas))
+        self.screen_manager.render()
 
     def restart(self):
         self._turn_off_shift_and_alpha()

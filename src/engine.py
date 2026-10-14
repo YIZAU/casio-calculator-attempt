@@ -301,15 +301,6 @@ class Engine:
         lexer = Lexer(expr)
         parser = Parser(lexer)
 
-        # 注入上下文
-        # parser.variables = self.variables
-        # parser.ans = self.variables.get('Ans', 0.0)
-        # parser.context = {
-        #     'variables': self.variables,
-        #     'Ans': self.variables.get('Ans', 0.0),
-        #     'angle_unit': self.angle_unit
-        # }
-
         return parser.expr()  # 直接调用 expr() 解析
 
     def calculate(self, expression: str) -> tuple:

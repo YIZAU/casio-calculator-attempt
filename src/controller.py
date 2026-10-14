@@ -338,9 +338,7 @@ class FormulaList:
             i += 1
 
     def refresh(self):
-        displayer = getattr(self.calculator, "displayer", None)
-        if displayer is not None:
-            displayer.render()
+        self.calculator.render()
 
 
 class History:

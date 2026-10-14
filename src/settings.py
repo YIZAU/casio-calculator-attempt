@@ -44,9 +44,6 @@ class Settings:
         with open(DATA_DIR / "variables.json", "r", encoding="utf-8") as g:
             self.variables: dict = json.load(g)
 
-        # 存储
-        self.memory: int | float | None = None
-
     def change_shift_mode(self) -> bool:
         self.shift_mode = not self.shift_mode
         return self.shift_mode
