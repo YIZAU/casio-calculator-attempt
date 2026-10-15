@@ -8,6 +8,13 @@ from displayer import ScreenManager
 
 
 class Calculator:
+    VARIABLE_MAP = {
+        "NEG": "A", "DMS": "B", "INV": "C",
+        "SIN": "D", "COS": "E", "TAN": "F",
+        ")": "x", "S2D": "y", "M_PLUS": "M",
+        "X": "x",
+    }
+
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Casio Calculator")
@@ -22,6 +29,8 @@ class Calculator:
         self.screen_manager = ScreenManager(self, self.ui.canvas)
         self.controller = Controller(self, self.formulas)
         self.engine = Engine(self)
+
+        self._pending_sto = False
 
     def deal_input(self, key_name: str):
         # 关机状态：只响应 POWER
@@ -41,6 +50,18 @@ class Calculator:
             self._deal_variable_input(key_name)
 
     def _deal_formula_input(self, key_name: str):
+        if self._pending_sto:
+            self._handle_pending_sto(key_name)
+            return
+
+        formula_screen = self.screen_manager.screens["formula"]
+        if formula_screen.has_feedback():
+            self.controller.clear()
+            formula_screen.clear_feedback()
+            formula_screen.show_result(None)
+            self._result_shown = False
+            self.render()
+
         # 特殊按键在主程序中处理
         if key_name == "SHIFT":
             self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
@@ -72,11 +93,15 @@ class Calculator:
         elif key_name == "=":
             self.calculate()
 
-        elif key_name == "STO" and self.settings.shift_mode:
-            self.settings.turn_off_shift_mode()
-            self.ui.update_flag('S', self.settings.turn_off_shift_mode())
-            self.screen_manager.switch_current_screen("variable")
-            self.ui.update_flag('X', True)
+        elif key_name == "STO":
+            if self.settings.shift_mode:
+                self.settings.turn_off_shift_mode()
+                self.ui.update_flag('S', False)
+                self.screen_manager.switch_current_screen("variable")
+                self.ui.update_flag('X', True)
+            else:
+                self._pending_sto = True
+                self.ui.update_flag('X', True)
 
         else:
             if self.settings.shift_mode:
@@ -104,6 +129,40 @@ class Calculator:
         elif key_name == "ALPHA":
             self.ui.update_flag("S", self.settings.turn_off_shift_mode())
             self.ui.update_flag("A", self.settings.change_alpha_mode())
+
+    def _handle_pending_sto(self, key_name):
+        self._pending_sto = False
+        self.ui.update_flag('X', False)
+
+        if key_name == "=":
+            self.calculate()
+            return
+
+        if key_name not in ["NEG", "DMS", "INV", "SIN", "COS", "TAN", ")", "S2D", "M_PLUS", "X"]:
+            return
+
+        if not self.formulas.nodes:
+            return
+
+        # Engine 唯一被调用的一处
+        expression = self.controller.get_expression()
+        result, error = self.engine.calculate(expression)
+
+        if error:
+            self.screen_manager.screens["formula"].show_feedback(error)
+            self.render()
+            return
+
+        var_name = self.VARIABLE_MAP[key_name]
+        self.settings.variables[var_name] = str(result)
+
+        self.screen_manager.screens["formula"].show_feedback(
+            f"{expression}→{var_name}"
+        )
+        self.settings.set_variable(result, var_name)
+        self.render()
+
+        self._result_shown = True
 
     def render(self):
         self.screen_manager.render()

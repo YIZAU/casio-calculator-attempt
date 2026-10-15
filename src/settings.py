@@ -41,8 +41,16 @@ class Settings:
         with open(DATA_DIR / "settings.json", "r", encoding="utf-8") as f:
             self.settings: dict = json.load(f)
 
-        with open(DATA_DIR / "variables.json", "r", encoding="utf-8") as g:
-            self.variables: dict = json.load(g)
+        with open(DATA_DIR / "variables.json", "r", encoding="utf-8") as v:
+            self.variables: dict = json.load(v)
+
+    def set_variable(self, expression: str, var_name: str):
+        self.variables[var_name] = expression
+
+        path = DATA_DIR / "variables.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as v:
+            json.dump(self.variables, v, ensure_ascii=False, indent=2)
 
     def change_shift_mode(self) -> bool:
         self.shift_mode = not self.shift_mode

@@ -288,7 +288,7 @@ class Engine:
         self.calculator: Calculator = calculator
         self.ans = None
 
-        self.env = self._initialize_environment()
+        self.env = self._package_environment()
 
     def parse(self, expression: str) -> Node:
         """解析表达式，返回 AST"""
@@ -313,6 +313,7 @@ class Engine:
             ast = self.parse(expression)
 
             # 2. simplify the result AST
+            self.env = self._package_environment()
             result = ast.simplify(env=self.env)
 
             # 3. update tha history
@@ -329,7 +330,7 @@ class Engine:
         except Exception as e:
             return 'Error', str(e)
 
-    def _initialize_environment(self) -> dict:
+    def _package_environment(self) -> dict:
         env = {}
         for variable_name, formulas in self.calculator.settings.variables.items():
             # print(variable_name, formulas)

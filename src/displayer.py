@@ -20,65 +20,69 @@ class Screen:
 class InputFormulaScreen(Screen):
     name = "formula"
 
-    def __init__(self, canvas: tk.Canvas, formulas: FormulaList):
+    def __init__(self, canvas, formulas):
         self.canvas = canvas
         self.formulas = formulas
-
-        self._result_text: str | None = None
+        self._result_text = None       # 右下角结果
+        self._feedback_text = None     # 主区域覆盖
 
     def show_result(self, text):
         self._result_text = str(text) if text is not None else None
 
-    def render(self):
-        """重绘整块 canvas。
+    def show_feedback(self, text):
+        """把反馈文本作为主画布内容显示（覆盖公式区域）。"""
+        self._feedback_text = str(text) if text is not None else None
 
-        result=None   -> 只画表达式，不显示结果
-        result=xxx    -> 表达式下方额外显示 xxx（一般是本次计算的结果或错误）
-        """
+    def clear_feedback(self):
+        self._feedback_text = None
+
+    def has_feedback(self) -> bool:
+        return self._feedback_text is not None
+
+    def render(self):
         self.canvas.delete('all')
 
-        left, right = self._split_by_cursor()
+        if self._feedback_text is not None:
+            # 主区域：显示反馈文本
+            self.canvas.create_text(
+                8, 10, anchor='nw', text=self._feedback_text,
+                font=self.FONT_EXPR, fill=self.COLOR_EXPR,
+            )
+        else:
+            # 主区域：正常渲染公式 + 光标
+            left, right = self._split_by_cursor()
+            x, y = 8, 10
 
-        # 表达式（左半 + 光标 + 右半）
-        # 光标用单独一个 text item，方便以后上色
-        x = 8
-        y = 10
+            left_id = self.canvas.create_text(
+                x, y, anchor='nw', text=left,
+                font=self.FONT_EXPR, fill=self.COLOR_EXPR,
+            )
+            bbox = self.canvas.bbox(left_id)
+            cursor_x = bbox[2] if bbox else x
 
-        left_id = self.canvas.create_text(
-            x, y, anchor='nw', text=left,
-            font=self.FONT_EXPR, fill=self.COLOR_EXPR,
-        )
-        # 光标接在左半段右侧
-        bbox = self.canvas.bbox(left_id)
-        cursor_x = (bbox[2] if bbox else x)
+            self.canvas.create_text(
+                cursor_x, y, anchor='nw', text='|',
+                font=self.FONT_EXPR, fill=self.COLOR_CURSOR,
+            )
+            self.canvas.create_text(
+                cursor_x + 1, y, anchor='nw', text=right,
+                font=self.FONT_EXPR, fill=self.COLOR_EXPR,
+            )
 
-        self.canvas.create_text(
-            cursor_x, y, anchor='nw', text='|',
-            font=self.FONT_EXPR, fill=self.COLOR_CURSOR,
-        )
-        self.canvas.create_text(
-            cursor_x + 1, y, anchor='nw', text=right,
-            font=self.FONT_EXPR, fill=self.COLOR_EXPR,
-        )
-
+        # 右下角结果区域（独立于反馈）
         if self._result_text is not None:
             self.canvas.create_text(
                 352, 122, anchor='se', text=self._result_text,
                 font=self.FONT_RESULT, fill=self.COLOR_RESULT,
             )
 
-    def clear(self):
-        self.canvas.delete('all')
-        self._result_text = None
-
-    def _split_by_cursor(self) -> tuple[str, str]:
+    def _split_by_cursor(self):
         nodes = self.formulas.nodes
         idx = self.formulas.index
-
-        left = ''.join(n.to_str() for n in nodes[:idx])
-        right = ''.join(n.to_str() for n in nodes[idx:])
-        return left, right
-
+        return (
+            ''.join(n.to_str() for n in nodes[:idx]),
+            ''.join(n.to_str() for n in nodes[idx:]),
+        )
 
 class VariableScreen(Screen):
     name = "variable"
