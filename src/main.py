@@ -24,59 +24,86 @@ class Calculator:
         self.engine = Engine(self)
 
     def deal_input(self, key_name: str):
+        # 关机状态：只响应 POWER
+        if not self.settings.running:
+            if key_name == "POWER":
+                self._turn_off_shift_and_alpha()
+                self.settings.running = True
+                self.render()
+            return
+
+        # 开机状态：按屏幕分派
         screen = self.screen_manager.get_current_screen()
 
         if screen == "formula":
             self._deal_formula_input(key_name)
         elif screen == "variable":
-            pass
-            # self
+            self._deal_variable_input(key_name)
 
     def _deal_formula_input(self, key_name: str):
-        if self.settings.running:
-            # 特殊按键在主程序中处理
-            if key_name == "SHIFT":
-                self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-                self.ui.update_flag("S", self.settings.change_shift_mode())
-            elif key_name == "ALPHA":
-                self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-                self.ui.update_flag("A", self.settings.change_alpha_mode())
-
-            elif key_name == "POWER":
-                self.restart()
-            elif key_name == "AC":
-                if self.settings.shift_mode:
-                    self.settings.running = False
-                    self._turn_off_shift_and_alpha()
-                else:
-                    self.controller.clear()
-            elif key_name == "DEL":
-                if self.settings.shift_mode:
-                    self._turn_off_shift_and_alpha()
-                    pass
-                elif self.settings.alpha_mode:
-                    self._turn_off_shift_and_alpha()
-                    pass
-                else:
-                    self.controller.delete()
-            elif key_name == "=":
-                self.calculate()
-            elif key_name in ["UP", "DOWN", "LEFT", "RIGHT"]:
-                self.controller.move_cursor(key_name)
-
-            else:
-                if self.settings.shift_mode:
-                    self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-                    self.controller.handle_formula_input(key_name, shift_mode=True)
-                elif self.settings.alpha_mode:
-                    self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-                    self.controller.handle_formula_input(key_name, alpha_mode=True)
-                else:
-                    self.controller.handle_formula_input(key_name)
+        # 特殊按键在主程序中处理
+        if key_name == "SHIFT":
+            self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
+            self.ui.update_flag("S", self.settings.change_shift_mode())
+        elif key_name == "ALPHA":
+            self.ui.update_flag("S", self.settings.turn_off_shift_mode())
+            self.ui.update_flag("A", self.settings.change_alpha_mode())
 
         elif key_name == "POWER":
-            self._turn_off_shift_and_alpha()
-            self.settings.running = True
+            self.restart()
+
+        elif key_name == "AC":
+            if self.settings.shift_mode:
+                self.settings.running = False
+                self._turn_off_shift_and_alpha()
+            else:
+                self.controller.clear()
+
+        elif key_name == "DEL":
+            if self.settings.shift_mode:
+                self._turn_off_shift_and_alpha()
+                pass
+            elif self.settings.alpha_mode:
+                self._turn_off_shift_and_alpha()
+                pass
+            else:
+                self.controller.delete()
+
+        elif key_name == "=":
+            self.calculate()
+
+        elif key_name == "STO" and self.settings.shift_mode:
+            self.settings.turn_off_shift_mode()
+            self.ui.update_flag('S', self.settings.turn_off_shift_mode())
+            self.screen_manager.switch_current_screen("variable")
+            self.ui.update_flag('X', True)
+
+        else:
+            if self.settings.shift_mode:
+                self.ui.update_flag("S", self.settings.turn_off_shift_mode())
+                self.controller.handle_formula_input(key_name, shift_mode=True)
+            elif self.settings.alpha_mode:
+                self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
+                self.controller.handle_formula_input(key_name, alpha_mode=True)
+            else:
+                self.controller.handle_formula_input(key_name)
+
+    def _deal_variable_input(self, key_name: str):
+        if key_name in ["NEG", "DMS", "INV", "SIN", "COS", "TAN", ")", "S2D", "M_PLUS"]:
+            self.controller.handle_formula_input(key_name, alpha_mode=True)
+            self.screen_manager.switch_current_screen("formula")
+            self.ui.update_flag('X', False)
+        elif key_name == "X":
+            self.controller.handle_formula_input("X")
+            self.screen_manager.switch_current_screen("formula")
+            self.ui.update_flag('X', False)
+
+        if key_name == "SHIFT":
+            self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
+            self.ui.update_flag("S", self.settings.change_shift_mode())
+        elif key_name == "ALPHA":
+            self.ui.update_flag("S", self.settings.turn_off_shift_mode())
+            self.ui.update_flag("A", self.settings.change_alpha_mode())
 
     def render(self):
         self.screen_manager.render()

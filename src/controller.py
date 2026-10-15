@@ -403,6 +403,10 @@ class Controller:
             ("normal", "INV"): (self._deal_power, ("f^-1",)),
             ("normal", "SQRT"): (self.formulas.add_root, (None,)),
             ("normal", "X"): (self.formulas.add_variable, ("x",)),
+            ("normal", "UP"): (self.move_cursor, ("UP",)),
+            ("normal", "DOWN"): (self.move_cursor, ("DOWN",)),
+            ("normal", "LEFT"): (self.move_cursor, ("LEFT",)),
+            ("normal", "RIGHT"): (self.move_cursor, ("RIGHT",)),
 
             ("shift", "EXP"): (self.formulas.add_variable, ("π",)),
             ("shift", "SIN"): (self.formulas.add_function, ("arcsin",)),

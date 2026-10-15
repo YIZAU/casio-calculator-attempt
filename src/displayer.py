@@ -163,6 +163,7 @@ class ScreenManager:
 
     def switch_current_screen(self, screen_name: str):
         self.current_screen = screen_name
+        self.render()
 
     def render(self):
         self.screens[self.current_screen].render()
