@@ -41,6 +41,16 @@ class Calculator:
                 self.render()
             return
 
+        # 全局：模式切换
+        if key_name == "SHIFT":
+            self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
+            self.ui.update_flag("S", self.settings.change_shift_mode())
+            return
+        if key_name == "ALPHA":
+            self.ui.update_flag("S", self.settings.turn_off_shift_mode())
+            self.ui.update_flag("A", self.settings.change_alpha_mode())
+            return
+
         # 开机状态：按屏幕分派
         screen = self.screen_manager.get_current_screen()
 
@@ -55,21 +65,21 @@ class Calculator:
             return
 
         formula_screen = self.screen_manager.screens["formula"]
+        need_render = False
+
         if formula_screen.has_feedback():
             self.controller.clear()
             formula_screen.clear_feedback()
+            need_render = True
+
+        if formula_screen.has_result():
             formula_screen.show_result(None)
-            self._result_shown = False
+            need_render = True
+
+        if need_render:
             self.render()
 
         # 特殊按键在主程序中处理
-        if key_name == "SHIFT":
-            self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-            self.ui.update_flag("S", self.settings.change_shift_mode())
-        elif key_name == "ALPHA":
-            self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-            self.ui.update_flag("A", self.settings.change_alpha_mode())
-
         elif key_name == "POWER":
             self.restart()
 
@@ -96,7 +106,7 @@ class Calculator:
         elif key_name == "STO":
             if self.settings.shift_mode:
                 self.settings.turn_off_shift_mode()
-                self.ui.update_flag('S', False)
+                self.ui.update_flag('S', self.settings.turn_off_shift_mode())
                 self.screen_manager.switch_current_screen("variable")
                 self.ui.update_flag('X', True)
             else:
@@ -104,31 +114,22 @@ class Calculator:
                 self.ui.update_flag('X', True)
 
         else:
-            if self.settings.shift_mode:
-                self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-                self.controller.handle_formula_input(key_name, shift_mode=True)
-            elif self.settings.alpha_mode:
-                self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-                self.controller.handle_formula_input(key_name, alpha_mode=True)
-            else:
-                self.controller.handle_formula_input(key_name)
+            self.controller.handle_formula_input(key_name, shift_mode=self.settings.shift_mode, alpha_mode=self.settings.alpha_mode)
+            self.ui.update_flag("S", self.settings.turn_off_shift_mode())
+            self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
 
     def _deal_variable_input(self, key_name: str):
         if key_name in ["NEG", "DMS", "INV", "SIN", "COS", "TAN", ")", "S2D", "M_PLUS"]:
+            self.screen_manager.switch_current_screen("formula")
+            self.ui.update_flag('X', False)
             self.controller.handle_formula_input(key_name, alpha_mode=True)
-            self.screen_manager.switch_current_screen("formula")
-            self.ui.update_flag('X', False)
         elif key_name == "X":
-            self.controller.handle_formula_input("X")
             self.screen_manager.switch_current_screen("formula")
             self.ui.update_flag('X', False)
+            self.controller.handle_formula_input("X")
 
-        if key_name == "SHIFT":
-            self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
-            self.ui.update_flag("S", self.settings.change_shift_mode())
-        elif key_name == "ALPHA":
-            self.ui.update_flag("S", self.settings.turn_off_shift_mode())
-            self.ui.update_flag("A", self.settings.change_alpha_mode())
+    def _deal_setting_input(self, key_name: str):
+        pass
 
     def _handle_pending_sto(self, key_name):
         self._pending_sto = False

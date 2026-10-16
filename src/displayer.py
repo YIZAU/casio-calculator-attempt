@@ -37,6 +37,9 @@ class InputFormulaScreen(Screen):
     def has_feedback(self) -> bool:
         return self._feedback_text is not None
 
+    def has_result(self) -> bool:
+        return self._result_text is not None
+
     def render(self):
         self.canvas.delete('all')
 
@@ -81,6 +84,7 @@ class InputFormulaScreen(Screen):
             ''.join(n.to_str() for n in nodes[:idx]),
             ''.join(n.to_str() for n in nodes[idx:]),
         )
+
 
 class VariableScreen(Screen):
     name = "variable"
@@ -150,6 +154,16 @@ class VariableScreen(Screen):
         return self.FONT_FAMILY, size
 
 
+class SettingScreen(Screen):
+    name = "setting"
+
+    def __init__(self, canvas: tk.Canvas):
+        self.canvas = canvas
+
+    def render(self):
+        self.canvas.delete("all")
+
+
 class ScreenManager:
     def __init__(self, calculator, canvas):
         self.calculator = calculator
@@ -158,6 +172,7 @@ class ScreenManager:
         self.screens = {
             "formula": InputFormulaScreen(canvas, calculator.formulas),
             "variable": VariableScreen(canvas, calculator.settings.variables),
+            "setting": SettingScreen(canvas)
         }
 
     def get_current_screen(self) -> str:

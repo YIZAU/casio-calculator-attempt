@@ -360,9 +360,9 @@ class History:
         if self.index > -len(self.log):
             self.index -= 1
 
-    # def clear(self):
-    #     self.index = 0
-    #     self.log = []
+    def clear(self):
+        self.index = 0
+        self.log = []
 
 
 class Controller:

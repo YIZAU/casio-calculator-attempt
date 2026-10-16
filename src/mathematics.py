@@ -1977,16 +1977,10 @@ def _(a: FractionNode, b: FractionNode):
     ).simplify()
 
 
-#
-# # ---------- Unary neg (dispatch channel "neg") ----------
+# ---------- Unary neg (dispatch channel "neg") ----------
 # @register("neg", IntegerNode, IntegerNode)
 # def _(a, _b): return IntegerNode(-a.value)
 #
 #
 # @register("neg", DecimalNode, DecimalNode)
 # def _(a, _b): return DecimalNode(-a.value)
-
-
-if __name__ == "__main__":
-    print(IntegerNode(1) + IntegerNode(2))
-    print(IntegerNode(1) / IntegerNode(3) + IntegerNode(2))

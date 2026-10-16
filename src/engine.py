@@ -166,10 +166,12 @@ class Parser:
         # ====== 一级处理 ======
 
         # 一元负号
-        if token and token.type == 'OP' and token.value == '-':
+        if token and token.type == 'OP' and token.value in ('-', '+'):
             self.eat('OP')
             node = self.factor()
-            node = NegativeNode(node)
+            if token.value == '-':
+                node = NegativeNode(node)
+            return node
 
         # 数字
         elif token and token.type == 'NUM':
