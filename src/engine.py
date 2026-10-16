@@ -294,7 +294,7 @@ class Engine:
     def __init__(self, calculator=None):
         from main import Calculator
         self.calculator: Calculator = calculator
-        self.ans = None
+        self.ans = IntegerNode(0)
 
         self.env = self._package_environment()
 

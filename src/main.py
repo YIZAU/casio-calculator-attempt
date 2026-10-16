@@ -177,7 +177,7 @@ class Calculator:
             formula_screen.show_result(error)
         else:
             formula_screen.show_result(formulas)
-            self.controller.save_history(expression)
+            self.controller.save_history()
 
         self.controller.clear()
         self.screen_manager.render()

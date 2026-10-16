@@ -348,24 +348,26 @@ class History:
         self.index = -1
         self.log = []
 
-    def save(self, formulas: str):
-        self.log.append(formulas)
-        self.index = -1
+    def save(self, formulas: FormulaList):
+        self.log.append(list(formulas.nodes))
+        self.index = 0
 
-    def _forward(self):
+    def index_forward(self):
         if self.index < -1:
             self.index += 1
 
-    def _backward(self):
-        if self.index > -1 * len(self.log):
+    def index_backward(self):
+        if self.index > -len(self.log):
             self.index -= 1
 
-    def clear(self):
-        self.index = -1
-        self.log = []
+    # def clear(self):
+    #     self.index = 0
+    #     self.log = []
 
 
 class Controller:
+    ANS_INHERITANCE_KEYS = {"+", "-", "*", "/"}
+
     def __init__(self, calculator, formulas: FormulaList):
         from main import Calculator
         self.calculator: Calculator = calculator
@@ -441,9 +443,13 @@ class Controller:
         if alpha_mode:
             current_mode = "alpha"
 
-        func, args = self._INPUT_TABLE.get((current_mode, key_name), None)
+        # 空列表 + 需要左操作数的键 → 自动插入 Ans
+        if not self.formulas.nodes and key_name in self.ANS_INHERITANCE_KEYS:
+            self.formulas.add_variable("Ans")
+
+        func, args = self._INPUT_TABLE.get((current_mode, key_name), (None, None))
         if func is None:
-            return
+            raise NotImplementedError(f"The key {key_name} under {current_mode} mode is not implemented")
         func(*args)
 
         self.formulas.refresh()
@@ -477,14 +483,25 @@ class Controller:
         elif msg == "LEFT":
             self.formulas.move_left()
         elif msg == "UP":
-            pass
+            self.history.index_backward()
+            self._load_current_history()
         elif msg == "DOWN":
-            pass
+            self.history.index_forward()
+            self._load_current_history()
 
         self.formulas.refresh()
 
-    def save_history(self, formulas: str):
-        self.history.save(formulas)
+    def save_history(self):
+        last_formulas = self.formulas
+        self.history.save(last_formulas)
+
+    def _load_current_history(self):
+        if self.history.index == 0:
+            self.formulas.nodes = []
+            self.formulas.index = 0
+            return
+        self.formulas.nodes = list(self.history.log[self.history.index])
+        self.formulas.index = len(self.formulas.nodes)
 
     def clear(self):
         self.formulas.clear()
