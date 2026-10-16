@@ -1,7 +1,5 @@
 import tkinter as tk
 
-from controller import FormulaList
-
 
 class Screen:
     FONT_EXPR = ('Segoe UI', 18)

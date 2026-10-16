@@ -40,6 +40,14 @@ class Lexer:
         return Token(Token.TYPE_NUM, float(num_str) if '.' in num_str else int(num_str))
 
     def get_identifier(self) -> Token:
+        # 已知多字符标识符优先避免被单字符截断
+        multi_char_vars = {"Ans"}
+        for keyword in multi_char_vars:
+            if self.text.startswith(keyword, self.pos):
+                for _ in keyword:
+                    self.advance()
+                return Token(Token.TYPE_VAR, "ANS")
+
         # 单字符变量与常量
         single_char_vars = {'A', 'B', 'C', 'D', 'E', 'F', 'x', 'y'}
         single_char_consts = {'π', 'e', 'i'}
@@ -315,6 +323,7 @@ class Engine:
             # 2. simplify the result AST
             self.env = self._package_environment()
             result = ast.simplify(env=self.env)
+            self.ans = result
 
             # 3. update tha history
             formulas = result.to_str()
@@ -333,9 +342,11 @@ class Engine:
     def _package_environment(self) -> dict:
         env = {}
         for variable_name, formulas in self.calculator.settings.variables.items():
-            # print(variable_name, formulas)
             env[variable_name] = self.parse(formulas)
+
         env["angle_unit"] = self.calculator.settings.settings["angle_unit"]
+        env["ANS"] = self.ans
+
         return env
 
     def get_ast(self, expression: str) -> Node | None:

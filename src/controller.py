@@ -407,6 +407,7 @@ class Controller:
             ("normal", "DOWN"): (self.move_cursor, ("DOWN",)),
             ("normal", "LEFT"): (self.move_cursor, ("LEFT",)),
             ("normal", "RIGHT"): (self.move_cursor, ("RIGHT",)),
+            ("normal", "ANS"): (self.formulas.add_variable, ("Ans",)),
 
             ("shift", "EXP"): (self.formulas.add_variable, ("π",)),
             ("shift", "SIN"): (self.formulas.add_function, ("arcsin",)),
