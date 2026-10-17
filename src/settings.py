@@ -105,3 +105,36 @@ class Settings:
     def turn_off_alpha_mode(self) -> False:
         self.alpha_mode = False
         return False
+
+    def reset_setup_data(self):
+        """恢复出厂设置参数"""
+        defaults = {
+            "module": "CALCULATE",
+            "angle_unit": "DEG",
+            "io_mode": "MathI/MathO",
+            "number_format": "NORM",
+            "engineer_symbol": False,
+            "fraction_result": "improper",
+            "complex_format": "rectangular",
+            "frequency": True,
+            "equation_complex_result": False,
+            "table_function_count": "dual",
+            "decimal_mark": "DOT",
+            "digit_separator": False,
+            "language": "EN"
+        }
+        self.settings = defaults
+        with open(DATA_DIR / "settings.json", "w", encoding="utf-8") as f:
+            json.dump(self.settings, f, ensure_ascii=False, indent=2)
+
+    def reset_memory(self):
+        """清空所有变量"""
+        for k in self.variables.keys():
+            self.variables[k] = "0"
+        with open(DATA_DIR / "variables.json", "w", encoding="utf-8") as v:
+            json.dump(self.variables, v, ensure_ascii=False, indent=2)
+
+    def reset_all(self):
+        """初始化全部"""
+        self.reset_setup_data()
+        self.reset_memory()

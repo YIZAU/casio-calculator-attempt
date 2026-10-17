@@ -190,6 +190,7 @@ class ErrorScreen(Screen):
             font=self.FONT_HINT, fill=self.COLOR_HINT
         )
 
+
 class ChoiceScreen(Screen):
     ITEMS_PER_PAGE = 4
     FONT_FAMILY = "Courier New"
@@ -311,6 +312,7 @@ class ChoiceScreen(Screen):
         size = int(row_height * 0.5)  # 0.5 稍小一点，留出行距
         size = max(self.FONT_MIN, min(size, self.FONT_MAX))
         return self.FONT_FAMILY, size
+
 
 class SettingAngleScreen(ChoiceScreen):
     name = "setting_angle"
@@ -498,6 +500,78 @@ class SettingScreen(ChoiceScreen):
         ]
 
 
+class ResetScreen(ChoiceScreen):
+    name = "reset_menu"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.title = "Reset?"
+
+        self.items = [
+            ("Setup Data", "reset_setup_confirm"),
+            ("Memory", "reset_memory_confirm"),
+            ("Initialize All", "reset_all_confirm"),
+        ]
+
+
+class ResetConfirmScreen(Screen):
+    def __init__(self, canvas, target_name, reset_action, success_screen):
+        self.canvas = canvas
+        self.target_name = target_name
+        self.reset_action = reset_action
+        self.success_screen = success_screen
+
+    def render(self):
+        self.canvas.delete('all')
+        w = int(self.canvas['width'])
+
+        # 顶部居中标题
+        self.canvas.create_text(
+            w // 2, 15, text="Reset OK?", anchor='n',
+            font=('Courier New', 14), fill='black'
+        )
+        # 左对齐的目标内容
+        self.canvas.create_text(
+            10, 45, text=self.target_name, anchor='nw',
+            font=('Courier New', 14), fill='black'
+        )
+        # 底部提示
+        self.canvas.create_text(
+            10, 75, text="[=]     :Yes", anchor='nw',
+            font=('Courier New', 14), fill='black'
+        )
+        self.canvas.create_text(
+            10, 100, text="[AC]    :Cancel", anchor='nw',
+            font=('Courier New', 14), fill='black'
+        )
+
+
+class ResetSuccessScreen(Screen):
+    def __init__(self, canvas, target_name):
+        self.canvas = canvas
+        self.target_name = target_name
+
+    def render(self):
+        self.canvas.delete('all')
+        w = int(self.canvas['width'])
+
+        # 顶部居中标题
+        self.canvas.create_text(
+            w // 2, 15, text="Reset!", anchor='n',
+            font=('Courier New', 14), fill='black'
+        )
+        # 左对齐的目标内容
+        self.canvas.create_text(
+            10, 45, text=self.target_name, anchor='nw',
+            font=('Courier New', 14), fill='black'
+        )
+        # 底部提示
+        self.canvas.create_text(
+            10, 95, text="Press [AC] key", anchor='nw',
+            font=('Courier New', 14), fill='black'
+        )
+
+
 class ScreenManager:
     def __init__(self, calculator, canvas):
         self.calculator = calculator
@@ -520,7 +594,21 @@ class ScreenManager:
             "setting_table": SettingTableScreen(canvas, calculator),
             "setting_decimal_mark": SettingDecimalMarkScreen(canvas, calculator),
             "setting_digit_separator": SettingDigitSeparatorScreen(canvas, calculator),
-            "setting_language": SettingLanguageScreen(canvas, calculator)
+            "setting_language": SettingLanguageScreen(canvas, calculator),
+
+            "reset_menu": ResetScreen(canvas, calculator),
+            "reset_setup_confirm": ResetConfirmScreen(
+                canvas, "Setup Data", calculator.settings.reset_setup_data, "reset_setup_success"
+            ),
+            "reset_setup_success": ResetSuccessScreen(canvas, "Setup Data"),
+            "reset_memory_confirm": ResetConfirmScreen(
+                canvas, "Memory", calculator.settings.reset_memory, "reset_memory_success"
+            ),
+            "reset_memory_success": ResetSuccessScreen(canvas, "Memory"),
+            "reset_all_confirm": ResetConfirmScreen(
+                canvas, "Initialize All", calculator.settings.reset_all, "reset_all_success"
+            ),
+            "reset_all_success": ResetSuccessScreen(canvas, "Initialize All"),
         }
 
     def get_current_screen(self) -> str:
@@ -533,6 +621,14 @@ class ScreenManager:
     def is_choice_screen(self) -> bool:
         screen_instance = self.screens.get(self.current_screen)
         return isinstance(screen_instance, ChoiceScreen)
+
+    def is_reset_confirm_screen(self) -> bool:
+        screen_instance = self.screens.get(self.current_screen)
+        return isinstance(screen_instance, ResetConfirmScreen)
+
+    def is_reset_success_screen(self) -> bool:
+        screen_instance = self.screens.get(self.current_screen)
+        return isinstance(screen_instance, ResetSuccessScreen)
 
     def render(self):
         self.screens[self.current_screen].render()

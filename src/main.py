@@ -63,6 +63,10 @@ class Calculator:
             self._deal_variable_input(key_name)
         elif screen == "error":
             self._deal_error_input(key_name)
+        elif self.screen_manager.is_reset_confirm_screen():
+            self._deal_confirm_input(key_name)
+        elif self.screen_manager.is_reset_success_screen():
+            self._deal_success_input(key_name)
 
     def _deal_formula_input(self, key_name: str):
         if self._pending_sto:
@@ -120,9 +124,12 @@ class Calculator:
 
         elif key_name == "MENU":
             if self.settings.shift_mode:
-                self.settings.turn_off_shift_mode()
                 self.ui.update_flag('S', self.settings.turn_off_shift_mode())
                 self.screen_manager.switch_current_screen("setting")
+
+        elif key_name == '9' and self.settings.shift_mode:
+            self.ui.update_flag('S', self.settings.turn_off_shift_mode())
+            self.screen_manager.switch_current_screen("reset_menu")
 
         else:
             self.controller.handle_formula_input(key_name, shift_mode=self.settings.shift_mode, alpha_mode=self.settings.alpha_mode)
@@ -172,6 +179,19 @@ class Calculator:
         elif key_name == "AC":
             # 通用的退出逻辑：在设置菜单中按 AC，默认退回公式屏
             self.screen_manager.switch_current_screen("formula")
+
+    def _deal_confirm_input(self, key_name: str):
+        if key_name == "=":
+            screen = self.screen_manager.screens[self.screen_manager.get_current_screen()]
+            screen.reset_action()
+            self.screen_manager.switch_current_screen(screen.success_screen)
+        elif key_name == "AC":
+            self.screen_manager.switch_current_screen("reset_menu")
+
+    def _deal_success_input(self, key_name: str):
+        if key_name == "AC":
+            self.screen_manager.switch_current_screen("formula")
+            self.ui.display_angle_unit()
 
     def _handle_pending_sto(self, key_name):
         self._pending_sto = False
