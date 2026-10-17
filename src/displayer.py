@@ -161,6 +161,7 @@ class ChoiceScreen(Screen):
     FONT_MAX = 20
     PADDING_X = 10
     PADDING_Y = 8
+    TITLE_HEIGHT = 30
     COLORS = {
         'text': 'black',
         'highlight': '#0055aa',
@@ -171,8 +172,10 @@ class ChoiceScreen(Screen):
     def __init__(self, canvas: tk.Canvas, calculator):
         self.calculator = calculator
         self.canvas = canvas
+
         self.page = 0
         self.parent_screen = ""
+        self.title = ""
 
         # 子类需要填充 self.items
         # 格式: [("显示文本", 目标字符串或可调用对象), ...]
@@ -190,7 +193,6 @@ class ChoiceScreen(Screen):
         self.page = (self.page + 1) % self.total_pages()
 
     def select(self, num: int):
-        """num 是 1~4。触发对应的动作。"""
         idx_in_page = num - 1
         global_idx = self.page * self.ITEMS_PER_PAGE + idx_in_page
 
@@ -211,21 +213,31 @@ class ChoiceScreen(Screen):
         w, h = self._get_canvas_size()
         font = self._compute_font(h)
 
-        # 绘制当前页的选项
-        start_idx = self.page * 4
-        end_idx = min(start_idx + 4, len(self.items))
+        if self.title:
+            self.canvas.create_text(
+                self.PADDING_X, self.PADDING_Y, anchor='nw',
+                text=self.title,
+                font=font,
+                fill=self.COLORS['text']
+            )
+
+        start_idx = self.page * self.ITEMS_PER_PAGE
+        end_idx = min(start_idx + self.ITEMS_PER_PAGE, len(self.items))
         current_items = self.items[start_idx:end_idx]
 
-        row_height = (h - 2 * self.PADDING_Y) / 4
+        # 计算剩余可用高度
+        available_h = h - 2 * self.PADDING_Y - (self.TITLE_HEIGHT if self.title else 0)
+        row_height = available_h / self.ITEMS_PER_PAGE
+        item_start_y = self.PADDING_Y + (self.TITLE_HEIGHT if self.title else 0)
+
         for i, (text, _) in enumerate(current_items):
-            y = self.PADDING_Y + i * row_height
+            y = item_start_y + i * row_height
             display_text = f"{i + 1}: {text}"
             self.canvas.create_text(
                 self.PADDING_X, y, anchor='nw', text=display_text,
                 font=font, fill=self.COLORS['text']
             )
 
-        # 绘制滚动条
         self._render_scrollbar(w, h)
 
     def _render_scrollbar(self, w, h):
@@ -278,6 +290,156 @@ class SettingAngleScreen(ChoiceScreen):
         ]
 
 
+class SettingIoScreen(ChoiceScreen):
+    name = "setting_io"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("MathI/MathO", lambda: self.calculator.set_setting("io_mode", "MathI/MathO")),
+            ("MathI/DecimalO", lambda: self.calculator.set_setting("io_mode", "MathI/DecimalO")),
+            ("LineI/LineO", lambda: self.calculator.set_setting("io_mode", "LineI/LineO")),
+            ("LineI/DecimalO", lambda: self.calculator.set_setting("io_mode", "LineI/DecimalO")),
+        ]
+
+
+class SettingNumberFormatScreen(ChoiceScreen):
+    name = "setting_number_format"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("Fix", lambda: self.calculator.set_setting("number_format", "FIX")),
+            ("Sci", lambda: self.calculator.set_setting("number_format", "SCI")),
+            ("Norm", lambda: self.calculator.set_setting("number_format", "NORM"))
+        ]
+
+
+class SettingEngineerSymbolScreen(ChoiceScreen):
+    name = "setting_engineer_symbol"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+        self.title = "Engineer Symbol?"
+
+        self.items = [
+            ("On", lambda: self.calculator.set_setting("engineer_symbol", True)),
+            ("Off", lambda: self.calculator.set_setting("engineer_symbol", False))
+        ]
+
+
+class SettingFractionResultScreen(ChoiceScreen):
+    name = "setting_fraction_result"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("ab/c", lambda: self.calculator.set_setting("fraction_result", "mixed")),
+            ("d/c", lambda: self.calculator.set_setting("fraction_result", "improper"))
+        ]
+
+
+class SettingComplexScreen(ChoiceScreen):
+    name = "setting_complex"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("a+bi", lambda: self.calculator.set_setting("complex_format", "rectangular")),
+            ("r∠θ", lambda: self.calculator.set_setting("complex_format", "polar")),
+        ]
+
+
+class SettingStatisticsScreen(ChoiceScreen):
+    name = "setting_statistics"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+        self.title = "Frequency?"
+
+        self.items = [
+            ("On", lambda: self.calculator.set_setting("frequency", True)),
+            ("Off", lambda: self.calculator.set_setting("frequency", False)),
+        ]
+
+
+class SettingEquationScreen(ChoiceScreen):
+    name = "setting_equation"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+        self.title = "Complex Result?"
+
+        self.items = [
+            ("On", lambda: self.calculator.set_setting("equation_complex_result", True)),
+            ("Off", lambda: self.calculator.set_setting("equation_complex_result", False)),
+        ]
+
+
+class SettingTableScreen(ChoiceScreen):
+    name = "setting_table"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("f(x)", lambda: self.calculator.set_setting("table_function_count", "single")),
+            ("f(x), g(x)", lambda: self.calculator.set_setting("table_function_count", "dual")),
+        ]
+
+
+class SettingDecimalMarkScreen(ChoiceScreen):
+    name = "setting_decimal_mark"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("Dot", lambda: self.calculator.set_setting("decimal_mark", "DOT")),
+            ("Comma", lambda: self.calculator.set_setting("decimal_mark", "COMMA")),
+        ]
+
+
+class SettingDigitSeparatorScreen(ChoiceScreen):
+    name = "setting_digit_separator"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+        self.title = "Digit Separator?"
+
+        self.items = [
+            ("On", lambda: self.calculator.set_setting("digit_separator", True)),
+            ("Off", lambda: self.calculator.set_setting("digit_separator", False)),
+        ]
+
+
+class SettingLanguageScreen(ChoiceScreen):
+    name = "setting_language"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("English", lambda: self.calculator.set_setting("language", "EN")),
+            ("中文", lambda: self.calculator.set_setting("language", "CH")),
+        ]
+
+
 class SettingScreen(ChoiceScreen):
     name = "setting"
 
@@ -285,20 +447,18 @@ class SettingScreen(ChoiceScreen):
         super().__init__(canvas, calculator)
 
         self.items = [
-            # ("Input/Output", "setting_io"),
+            ("Input/Output", "setting_io"),
             ("Angle Unit", "setting_angle"),
-            # ("Number Format", ""),
-            # ("Engineer Symbol", ""),
-            # ("Fraction Result", ""),
-            # ("Complex", ""),
-            # ("Statistics", ""),
-            # ("Equation/Func", ""),
-            # ("Table", ""),
-            # ("Decimal Mark", ""),
-            # ("Digit Separator", ""),
-            # ("MultiLine", ""),
-            # ("Language", ""),
-            # ("Contrast", "")
+            ("Number Format", "setting_number_format"),
+            ("Engineer Symbol", "setting_engineer_symbol"),
+            ("Fraction Result", "setting_fraction_result"),
+            ("Complex", "setting_complex"),
+            ("Statistics", "setting_statistics"),
+            ("Equation/Func", "setting_equation"),
+            ("Table", "setting_table"),
+            ("Decimal Mark", "setting_decimal_mark"),
+            ("Digit Separator", "setting_digit_separator"),
+            ("Language", "setting_language")
         ]
 
 
@@ -312,7 +472,18 @@ class ScreenManager:
             "variable": VariableScreen(canvas, calculator.settings.variables),
 
             "setting": SettingScreen(canvas, calculator),
-            "setting_angle": SettingAngleScreen(canvas, calculator)
+            "setting_io": SettingIoScreen(canvas, calculator),
+            "setting_angle": SettingAngleScreen(canvas, calculator),
+            "setting_number_format": SettingNumberFormatScreen(canvas, calculator),
+            "setting_engineer_symbol": SettingEngineerSymbolScreen(canvas, calculator),
+            "setting_fraction_result": SettingFractionResultScreen(canvas, calculator),
+            "setting_complex": SettingComplexScreen(canvas, calculator),
+            "setting_statistics": SettingStatisticsScreen(canvas, calculator),
+            "setting_equation": SettingEquationScreen(canvas, calculator),
+            "setting_table": SettingTableScreen(canvas, calculator),
+            "setting_decimal_mark": SettingDecimalMarkScreen(canvas, calculator),
+            "setting_digit_separator": SettingDigitSeparatorScreen(canvas, calculator),
+            "setting_language": SettingLanguageScreen(canvas, calculator)
         }
 
     def get_current_screen(self) -> str:

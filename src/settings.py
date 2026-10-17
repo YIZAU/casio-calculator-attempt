@@ -18,24 +18,54 @@ class Settings:
         self.running = True
 
         self._setting_map = {
-            "input_mode": {
-                1: "MODE_CALCULATE",
-                2: "MODE_COMPLEX",
-                3: "MODE_BASE_N",
-                4: "MODE_MARTIX",
-                5: "MODE_VECTOR",
-                6: "MODE_STATISTICS",
-                7: "MODE_TABLE",
-                8: "MODE_EQUATION",
-                9: "MODE_INEQUALITY",
-                10: "MODE_RATIO"
+            "module": {
+                1: "CALCULATE",
+                2: "COMPLEX",
+                3: "BASE_N",
+                4: "MARTIX",
+                5: "MVECTOR",
+                6: "MSTATISTICS",
+                7: "TABLE",
+                8: "EQUATION/FUNC",
+                9: "INEQUALITY",
+                10: "RATIO"
             },
             "io_mode": {
-                1: "IO_MATH_MATH",
-                2: "IO_MATH_DECIMAL",
-                3: "IO_LINEAR_LINEAR",
-                4: "IO_LINEAR_DECIMAL",
-            }
+                1: "MathI/MathO",
+                2: "MathI/DecimalO",
+                3: "LineI/LineO",
+                4: "LineI/DecimalO",
+            },
+            "angle_unit": [
+                "DEG",
+                "RAD",
+                "GRA"
+            ],
+            "number_format": [
+                "FIX",
+                "SCI",
+                "NORM"
+            ],
+            "fraction_result": [
+                "mixed",
+                "improper"
+            ],
+            "complex_format": [
+                "rectangular",
+                "polar"
+            ],
+            "table_function_count": [
+                "single",
+                "dual"
+            ],
+            "decimal_mark": [
+                "dot",
+                "comma"
+            ],
+            "language": [
+                "EN",
+                "CH"
+            ]
         }
 
         with open(DATA_DIR / "settings.json", "r", encoding="utf-8") as f:

@@ -31,6 +31,7 @@ class Calculator:
         self.engine = Engine(self)
 
         self._pending_sto = False
+        self.root_screen = "formula"
 
     def deal_input(self, key_name: str):
         # 关机状态：只响应 POWER
@@ -217,7 +218,11 @@ class Calculator:
     def set_angle_unit(self, value):
         self.settings.save_settings("angle_unit", value)
         self.ui.display_angle_unit()
-        self.screen_manager.switch_current_screen("formula")
+        self.screen_manager.switch_current_screen(self.root_screen)
+
+    def set_setting(self, key, value):
+        self.settings.save_settings(key, value)
+        self.screen_manager.switch_current_screen(self.root_screen)
 
     def restart(self):
         self._turn_off_shift_and_alpha()

@@ -1,6 +1,15 @@
 {
-    "input_mode": "MODE_CALCULATE",
-    "angle_unit": "DEG",
-    "io_mode": "IO_MATH_MATH",
-    "display_format": "FIX"
+  "module": "CALCULATE",
+  "angle_unit": "DEG",
+  "io_mode": "MathI/MathO",
+  "number_format": "NORM",
+  "engineer_symbol": false,
+  "fraction_result": "improper",
+  "complex_format": "rectangular",
+  "frequency": true,
+  "equation_complex_result": false,
+  "table_function_count": "dual",
+  "decimal_mark": "DOT",
+  "digit_separator": false,
+  "language": "EN"
 }
