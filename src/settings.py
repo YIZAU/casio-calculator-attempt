@@ -52,6 +52,14 @@ class Settings:
         with open(path, "w", encoding="utf-8") as v:
             json.dump(self.variables, v, ensure_ascii=False, indent=2)
 
+    def save_settings(self, setting_name: str, value: str):
+        self.settings[setting_name] = value
+
+        path = DATA_DIR / "settings.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.settings, f, ensure_ascii=False, indent=2)
+
     def change_shift_mode(self) -> bool:
         self.shift_mode = not self.shift_mode
         return self.shift_mode

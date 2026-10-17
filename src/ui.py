@@ -123,7 +123,7 @@ class UI:
             ["ALPHA", None, (2, 1), "yellow", "#999999"],
             ["UP", None, (3, 1), "yellow", "#999999"],
             ["DOWN", None, (4, 1), "yellow", "#999999"],
-            ["MENU/SET", None, (5, 1), "yellow", "#999999"],
+            ["MENU", None, (5, 1), "yellow", "#999999"],
             ["POWER", None, (6, 1), "yellow", "#999999"],
 
             ["OPTN", ASSETS_DIR / "212.png", (1, 2), "white", "black"],

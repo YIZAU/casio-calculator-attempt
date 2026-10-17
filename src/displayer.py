@@ -21,8 +21,8 @@ class InputFormulaScreen(Screen):
     def __init__(self, canvas, formulas):
         self.canvas = canvas
         self.formulas = formulas
-        self._result_text = None       # 右下角结果
-        self._feedback_text = None     # 主区域覆盖
+        self._result_text = None  # 右下角结果
+        self._feedback_text = None  # 主区域覆盖
 
     def show_result(self, text):
         self._result_text = str(text) if text is not None else None
@@ -154,14 +154,152 @@ class VariableScreen(Screen):
         return self.FONT_FAMILY, size
 
 
-class SettingScreen(Screen):
-    name = "setting"
+class ChoiceScreen(Screen):
+    ITEMS_PER_PAGE = 4
+    FONT_FAMILY = "Courier New"
+    FONT_MIN = 8
+    FONT_MAX = 20
+    PADDING_X = 10
+    PADDING_Y = 8
+    COLORS = {
+        'text': 'black',
+        'highlight': '#0055aa',
+        'scroll_bg': '#cccccc',
+        'scroll_fg': '#0055aa',
+    }
 
-    def __init__(self, canvas: tk.Canvas):
+    def __init__(self, canvas: tk.Canvas, calculator):
+        self.calculator = calculator
         self.canvas = canvas
+        self.page = 0
+        self.parent_screen = ""
+
+        # 子类需要填充 self.items
+        # 格式: [("显示文本", 目标字符串或可调用对象), ...]
+        self.items = []
+
+    # ---------- 供 Calculator 调用的接口 ----------
+
+    def total_pages(self) -> int:
+        return max(1, (len(self.items) + self.ITEMS_PER_PAGE - 1) // self.ITEMS_PER_PAGE)
+
+    def page_up(self):
+        self.page = (self.page - 1) % self.total_pages()
+
+    def page_down(self):
+        self.page = (self.page + 1) % self.total_pages()
+
+    def select(self, num: int):
+        """num 是 1~4。触发对应的动作。"""
+        idx_in_page = num - 1
+        global_idx = self.page * self.ITEMS_PER_PAGE + idx_in_page
+
+        if global_idx >= len(self.items):
+            return
+
+        _, target = self.items[global_idx]
+
+        if callable(target):
+            target()
+        elif isinstance(target, str):
+            self.calculator.screen_manager.switch_current_screen(target)
+
+    # ---------- 渲染 ----------
 
     def render(self):
-        self.canvas.delete("all")
+        self.canvas.delete('all')
+        w, h = self._get_canvas_size()
+        font = self._compute_font(h)
+
+        # 绘制当前页的选项
+        start_idx = self.page * 4
+        end_idx = min(start_idx + 4, len(self.items))
+        current_items = self.items[start_idx:end_idx]
+
+        row_height = (h - 2 * self.PADDING_Y) / 4
+        for i, (text, _) in enumerate(current_items):
+            y = self.PADDING_Y + i * row_height
+            display_text = f"{i + 1}: {text}"
+            self.canvas.create_text(
+                self.PADDING_X, y, anchor='nw', text=display_text,
+                font=font, fill=self.COLORS['text']
+            )
+
+        # 绘制滚动条
+        self._render_scrollbar(w, h)
+
+    def _render_scrollbar(self, w, h):
+        total = self.total_pages()
+        if total <= 1:
+            return  # 只有一页不需要滚动条
+
+        bar_width = 6
+        bar_x = w - bar_width - 5
+        bar_top = self.PADDING_Y
+        bar_height = h - 2 * self.PADDING_Y
+        block_height = bar_height / total
+
+        for i in range(total):
+            y1 = bar_top + i * block_height
+            y2 = y1 + block_height
+            color = self.COLORS['scroll_fg'] if i == self.page else self.COLORS['scroll_bg']
+            # 留点间隙
+            self.canvas.create_rectangle(
+                bar_x, y1 + 1, bar_x + bar_width, y2 - 1,
+                fill=color, outline=""
+            )
+
+    def _get_canvas_size(self):
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        if w <= 1:
+            w = int(self.canvas['width'])
+        if h <= 1:
+            h = int(self.canvas['height'])
+        return w, h
+
+    def _compute_font(self, h):
+        row_height = (h - 2 * self.PADDING_Y) / 4
+        size = int(row_height * 0.5)  # 0.5 稍小一点，留出行距
+        size = max(self.FONT_MIN, min(size, self.FONT_MAX))
+        return self.FONT_FAMILY, size
+
+class SettingAngleScreen(ChoiceScreen):
+    name = "setting_angle"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+        self.parent_screen = "setting"
+
+        self.items = [
+            ("Degree(D)", lambda: self.calculator.set_angle_unit("DEG")),
+            ("Radian(R)", lambda: self.calculator.set_angle_unit("RAD")),
+            ("Gradient(G)", lambda: self.calculator.set_angle_unit("GRA")),
+        ]
+
+
+class SettingScreen(ChoiceScreen):
+    name = "setting"
+
+    def __init__(self, canvas: tk.Canvas, calculator):
+        super().__init__(canvas, calculator)
+
+        self.items = [
+            # ("Input/Output", "setting_io"),
+            ("Angle Unit", "setting_angle"),
+            # ("Number Format", ""),
+            # ("Engineer Symbol", ""),
+            # ("Fraction Result", ""),
+            # ("Complex", ""),
+            # ("Statistics", ""),
+            # ("Equation/Func", ""),
+            # ("Table", ""),
+            # ("Decimal Mark", ""),
+            # ("Digit Separator", ""),
+            # ("MultiLine", ""),
+            # ("Language", ""),
+            # ("Contrast", "")
+        ]
 
 
 class ScreenManager:
@@ -172,7 +310,9 @@ class ScreenManager:
         self.screens = {
             "formula": InputFormulaScreen(canvas, calculator.formulas),
             "variable": VariableScreen(canvas, calculator.settings.variables),
-            "setting": SettingScreen(canvas)
+
+            "setting": SettingScreen(canvas, calculator),
+            "setting_angle": SettingAngleScreen(canvas, calculator)
         }
 
     def get_current_screen(self) -> str:
@@ -181,6 +321,10 @@ class ScreenManager:
     def switch_current_screen(self, screen_name: str):
         self.current_screen = screen_name
         self.render()
+
+    def is_choice_screen(self) -> bool:
+        screen_instance = self.screens.get(self.current_screen)
+        return isinstance(screen_instance, ChoiceScreen)
 
     def render(self):
         self.screens[self.current_screen].render()

@@ -54,7 +54,9 @@ class Calculator:
         # 开机状态：按屏幕分派
         screen = self.screen_manager.get_current_screen()
 
-        if screen == "formula":
+        if self.screen_manager.is_choice_screen():
+            self._deal_choice_input(key_name)
+        elif screen == "formula":
             self._deal_formula_input(key_name)
         elif screen == "variable":
             self._deal_variable_input(key_name)
@@ -80,7 +82,7 @@ class Calculator:
             self.render()
 
         # 特殊按键在主程序中处理
-        elif key_name == "POWER":
+        if key_name == "POWER":
             self.restart()
 
         elif key_name == "AC":
@@ -113,6 +115,12 @@ class Calculator:
                 self._pending_sto = True
                 self.ui.update_flag('X', True)
 
+        elif key_name == "MENU":
+            if self.settings.shift_mode:
+                self.settings.turn_off_shift_mode()
+                self.ui.update_flag('S', self.settings.turn_off_shift_mode())
+                self.screen_manager.switch_current_screen("setting")
+
         else:
             self.controller.handle_formula_input(key_name, shift_mode=self.settings.shift_mode, alpha_mode=self.settings.alpha_mode)
             self.ui.update_flag("S", self.settings.turn_off_shift_mode())
@@ -128,8 +136,31 @@ class Calculator:
             self.ui.update_flag('X', False)
             self.controller.handle_formula_input("X")
 
-    def _deal_setting_input(self, key_name: str):
-        pass
+    def _deal_choice_input(self, key_name: str):
+        # 获取当前的 ChoiceScreen 实例
+        screen_name = self.screen_manager.get_current_screen()
+        screen = self.screen_manager.screens[screen_name]
+
+        if key_name == "UP":
+            screen.page_up()
+            self.render()
+
+        elif key_name == "DOWN":
+            screen.page_down()
+            self.render()
+
+        elif key_name == "LEFT":
+            if screen.parent_screen:
+                self.screen_manager.switch_current_screen(screen.parent_screen)
+
+        elif key_name in ("1", "2", "3", "4"):
+            # 将字符转为数字，传给 select 处理
+            # select 内部如果触发了切屏，内部的 switch_current_screen 会自动 render
+            screen.select(int(key_name))
+
+        elif key_name == "AC":
+            # 通用的退出逻辑：在设置菜单中按 AC，默认退回公式屏
+            self.screen_manager.switch_current_screen("formula")
 
     def _handle_pending_sto(self, key_name):
         self._pending_sto = False
@@ -182,6 +213,11 @@ class Calculator:
 
         self.controller.clear()
         self.screen_manager.render()
+
+    def set_angle_unit(self, value):
+        self.settings.save_settings("angle_unit", value)
+        self.ui.display_angle_unit()
+        self.screen_manager.switch_current_screen("formula")
 
     def restart(self):
         self._turn_off_shift_and_alpha()
