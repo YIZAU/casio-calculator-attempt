@@ -154,6 +154,42 @@ class VariableScreen(Screen):
         return self.FONT_FAMILY, size
 
 
+class ErrorScreen(Screen):
+    name = "error"
+
+    FONT_ERROR = ('Segoe UI', 18, 'bold')
+    FONT_HINT = ('Segoe UI', 14)
+
+    COLOR_ERROR = '#333333'
+    COLOR_HINT = '#333333'
+
+    def __init__(self, canvas):
+        self.canvas = canvas
+        self.error_message = ""
+
+    def set_error(self, message: str):
+        self.error_message = message
+
+    def render(self):
+        self.canvas.delete('all')
+
+        self.canvas.create_text(
+            8, 10, anchor='nw', text=self.error_message,
+            font=self.FONT_ERROR, fill=self.COLOR_ERROR
+        )
+
+        hint_ac = "[AC]      : Cancel"
+        hint_goto = "[◀][▶] : Goto"
+
+        self.canvas.create_text(
+            8, 70, anchor='nw', text=hint_ac,
+            font=self.FONT_HINT, fill=self.COLOR_HINT
+        )
+        self.canvas.create_text(
+            8, 95, anchor='nw', text=hint_goto,
+            font=self.FONT_HINT, fill=self.COLOR_HINT
+        )
+
 class ChoiceScreen(Screen):
     ITEMS_PER_PAGE = 4
     FONT_FAMILY = "Courier New"
@@ -470,6 +506,7 @@ class ScreenManager:
         self.screens = {
             "formula": InputFormulaScreen(canvas, calculator.formulas),
             "variable": VariableScreen(canvas, calculator.settings.variables),
+            "error": ErrorScreen(canvas),
 
             "setting": SettingScreen(canvas, calculator),
             "setting_io": SettingIoScreen(canvas, calculator),

@@ -61,6 +61,8 @@ class Calculator:
             self._deal_formula_input(key_name)
         elif screen == "variable":
             self._deal_variable_input(key_name)
+        elif screen == "error":
+            self._deal_error_input(key_name)
 
     def _deal_formula_input(self, key_name: str):
         if self._pending_sto:
@@ -137,6 +139,14 @@ class Calculator:
             self.ui.update_flag('X', False)
             self.controller.handle_formula_input("X")
 
+    def _deal_error_input(self, key_name: str):
+        if key_name == "AC":
+            self.controller.clear()
+            self.screen_manager.switch_current_screen("formula")
+
+        elif key_name in ("LEFT", "RIGHT"):
+            self.screen_manager.switch_current_screen("formula")
+
     def _deal_choice_input(self, key_name: str):
         # 获取当前的 ChoiceScreen 实例
         screen_name = self.screen_manager.get_current_screen()
@@ -204,16 +214,16 @@ class Calculator:
         expression = self.controller.get_expression()
         formulas, error = self.engine.calculate(expression)
 
-        formula_screen = self.screen_manager.screens["formula"]
-
         if error:
-            formula_screen.show_result(error)
+            error_screen = self.screen_manager.screens["error"]
+            error_screen.set_error(error)
+            self.screen_manager.switch_current_screen("error")
         else:
+            formula_screen = self.screen_manager.screens["formula"]
             formula_screen.show_result(formulas)
             self.controller.save_history()
-
-        self.controller.clear()
-        self.screen_manager.render()
+            self.controller.clear()
+            self.screen_manager.render()
 
     def set_angle_unit(self, value):
         self.settings.save_settings("angle_unit", value)
