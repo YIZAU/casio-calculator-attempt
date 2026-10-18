@@ -1,8 +1,8 @@
 {
   "module": "CALCULATE",
-  "angle_unit": "DEG",
+  "angle_unit": "RAD",
   "io_mode": "MathI/MathO",
-  "number_format": "NORM",
+  "number_format": "Norm 2",
   "engineer_symbol": false,
   "fraction_result": "improper",
   "complex_format": "rectangular",
@@ -11,5 +11,5 @@
   "table_function_count": "dual",
   "decimal_mark": "DOT",
   "digit_separator": false,
-  "language": "EN"
+  "language": "CH"
 }

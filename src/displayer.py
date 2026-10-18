@@ -2,8 +2,15 @@ import tkinter as tk
 
 
 class Screen:
-    FONT_EXPR = ('Segoe UI', 18)
-    FONT_RESULT = ('Segoe UI', 16)
+    FONT_FAMILY = "Consolas"
+    FONT_SIZE_LARGE = 22
+    FONT_SIZE_MEDIUM = 16
+    FONT_SIZE_SMALL = 14
+
+    FONT_LARGE = (FONT_FAMILY, FONT_SIZE_LARGE)
+    FONT_MEDIUM = (FONT_FAMILY, FONT_SIZE_MEDIUM)
+    FONT_SMALL = (FONT_FAMILY, FONT_SIZE_SMALL)
+    FONT_BOLD = (FONT_FAMILY, FONT_SIZE_MEDIUM, "bold")
 
     COLOR_BG = '#d5e3d4'
     COLOR_EXPR = 'black'
@@ -47,7 +54,7 @@ class InputFormulaScreen(Screen):
             # 主区域：显示反馈文本
             self.canvas.create_text(
                 8, 10, anchor='nw', text=self._feedback_text,
-                font=self.FONT_EXPR, fill=self.COLOR_EXPR,
+                font=self.FONT_LARGE, fill=self.COLOR_EXPR,
             )
         else:
             # 主区域：正常渲染公式 + 光标
@@ -56,25 +63,25 @@ class InputFormulaScreen(Screen):
 
             left_id = self.canvas.create_text(
                 x, y, anchor='nw', text=left,
-                font=self.FONT_EXPR, fill=self.COLOR_EXPR,
+                font=self.FONT_LARGE, fill=self.COLOR_EXPR,
             )
             bbox = self.canvas.bbox(left_id)
             cursor_x = bbox[2] if bbox else x
 
             self.canvas.create_text(
                 cursor_x, y, anchor='nw', text='|',
-                font=self.FONT_EXPR, fill=self.COLOR_CURSOR,
+                font=self.FONT_LARGE, fill=self.COLOR_CURSOR,
             )
             self.canvas.create_text(
                 cursor_x + 1, y, anchor='nw', text=right,
-                font=self.FONT_EXPR, fill=self.COLOR_EXPR,
+                font=self.FONT_LARGE, fill=self.COLOR_EXPR,
             )
 
         # 右下角结果区域（独立于反馈）
         if self._result_text is not None:
             self.canvas.create_text(
                 352, 122, anchor='se', text=self._result_text,
-                font=self.FONT_RESULT, fill=self.COLOR_RESULT,
+                font=self.FONT_MEDIUM, fill=self.COLOR_RESULT,
             )
 
     def _split_by_cursor(self):
@@ -95,11 +102,7 @@ class VariableScreen(Screen):
 
     PADDING_X = 10
     PADDING_Y = 8
-    COL_SPLIT = 0.5  # 两列的分割比例
-
-    FONT_FAMILY = "Courier New"
-    FONT_MIN = 8
-    FONT_MAX = 20
+    COL_SPLIT = 0.5
 
     def __init__(self, canvas: tk.Canvas, variables: dict):
         self.variables = variables
@@ -108,28 +111,30 @@ class VariableScreen(Screen):
     def render(self):
         self.canvas.delete("all")
 
-        w, h = self._get_canvas_size()
-        font = self._compute_font(h)
-
-        line_height = (h - 2 * self.PADDING_Y) / self.ROW_COUNT
+        w, h = self.canvas.winfo_width(), self.canvas.winfo_height()
+        if w <= 1:
+            w = int(self.canvas['width'])
+        if h <= 1:
+            h = int(self.canvas['height'])
         split_x = int(w * self.COL_SPLIT)
+        line_height = (h - 2 * self.PADDING_Y) / self.ROW_COUNT
 
         # left column
         for i, var in enumerate(self.LEFT_COL):
             y = self.PADDING_Y + i * line_height
-            self._draw_var(self.PADDING_X, y, var, font)
+            self._draw_var(self.PADDING_X, y, var)
 
         # right column
         for i, var in enumerate(self.RIGHT_COL):
             y = self.PADDING_Y + i * line_height
-            self._draw_var(split_x, y, var, font)
+            self._draw_var(split_x, y, var)
 
-    def _draw_var(self, x, y, var, font):
-        value = self._get_value(var)
+    def _draw_var(self, x, y, var):
+        value = self.variables.get(var, "0")
         text = f"{var}={value}"
         self.canvas.create_text(
             x, y, anchor='nw', text=text,
-            font=font, fill='black',
+            font=self.FONT_MEDIUM, fill='black',
         )
 
     def _get_value(self, var):
@@ -138,27 +143,9 @@ class VariableScreen(Screen):
             return "0"
         return str(value)
 
-    def _get_canvas_size(self):
-        w = self.canvas.winfo_width()
-        h = self.canvas.winfo_height()
-        if w <= 1:
-            w = int(self.canvas['width'])
-        if h <= 1:
-            h = int(self.canvas['height'])
-        return w, h
-
-    def _compute_font(self, h):
-        row_height = (h - 2 * self.PADDING_Y) / self.ROW_COUNT
-        size = int(row_height * 0.6)
-        size = max(self.FONT_MIN, min(size, self.FONT_MAX))
-        return self.FONT_FAMILY, size
-
 
 class ErrorScreen(Screen):
     name = "error"
-
-    FONT_ERROR = ('Segoe UI', 18, 'bold')
-    FONT_HINT = ('Segoe UI', 14)
 
     COLOR_ERROR = '#333333'
     COLOR_HINT = '#333333'
@@ -175,30 +162,28 @@ class ErrorScreen(Screen):
 
         self.canvas.create_text(
             8, 10, anchor='nw', text=self.error_message,
-            font=self.FONT_ERROR, fill=self.COLOR_ERROR
+            font=self.FONT_LARGE, fill=self.COLOR_ERROR
         )
 
-        hint_ac = "[AC]      : Cancel"
+        hint_ac = "[AC]    : Cancel"
         hint_goto = "[◀][▶] : Goto"
 
         self.canvas.create_text(
             8, 70, anchor='nw', text=hint_ac,
-            font=self.FONT_HINT, fill=self.COLOR_HINT
+            font=self.FONT_MEDIUM, fill=self.COLOR_HINT
         )
         self.canvas.create_text(
             8, 95, anchor='nw', text=hint_goto,
-            font=self.FONT_HINT, fill=self.COLOR_HINT
+            font=self.FONT_MEDIUM, fill=self.COLOR_HINT
         )
 
 
 class ChoiceScreen(Screen):
     ITEMS_PER_PAGE = 4
-    FONT_FAMILY = "Courier New"
-    FONT_MIN = 8
-    FONT_MAX = 20
     PADDING_X = 10
     PADDING_Y = 8
     TITLE_HEIGHT = 30
+    PROMPT_HEIGHT = 25
     COLORS = {
         'text': 'black',
         'highlight': '#0055aa',
@@ -213,12 +198,11 @@ class ChoiceScreen(Screen):
         self.page = 0
         self.parent_screen = ""
         self.title = ""
+        self.prompt_text = ""
 
         # 子类需要填充 self.items
         # 格式: [("显示文本", 目标字符串或可调用对象), ...]
         self.items = []
-
-    # ---------- 供 Calculator 调用的接口 ----------
 
     def total_pages(self) -> int:
         return max(1, (len(self.items) + self.ITEMS_PER_PAGE - 1) // self.ITEMS_PER_PAGE)
@@ -243,39 +227,44 @@ class ChoiceScreen(Screen):
         elif isinstance(target, str):
             self.calculator.screen_manager.switch_current_screen(target)
 
-    # ---------- 渲染 ----------
-
     def render(self):
         self.canvas.delete('all')
         w, h = self._get_canvas_size()
-        font = self._compute_font(h)
 
         if self.title:
             self.canvas.create_text(
                 self.PADDING_X, self.PADDING_Y, anchor='nw',
-                text=self.title,
-                font=font,
+                text=self.calculator.translate(self.title),
+                font=self.FONT_MEDIUM,
                 fill=self.COLORS['text']
             )
+
+        available_h = h - 2 * self.PADDING_Y - (self.TITLE_HEIGHT if self.title else 0)
+        row_height = available_h / self.ITEMS_PER_PAGE
+        item_start_y = self.PADDING_Y + (self.TITLE_HEIGHT if self.title else 0)
 
         start_idx = self.page * self.ITEMS_PER_PAGE
         end_idx = min(start_idx + self.ITEMS_PER_PAGE, len(self.items))
         current_items = self.items[start_idx:end_idx]
 
-        # 计算剩余可用高度
-        available_h = h - 2 * self.PADDING_Y - (self.TITLE_HEIGHT if self.title else 0)
-        row_height = available_h / self.ITEMS_PER_PAGE
-        item_start_y = self.PADDING_Y + (self.TITLE_HEIGHT if self.title else 0)
-
         for i, (text, _) in enumerate(current_items):
             y = item_start_y + i * row_height
-            display_text = f"{i + 1}: {text}"
+            translated_text = self.calculator.translate(text)
+            display_text = f"{i + 1}: {translated_text}"
             self.canvas.create_text(
                 self.PADDING_X, y, anchor='nw', text=display_text,
-                font=font, fill=self.COLORS['text']
+                font=self.FONT_MEDIUM, fill=self.COLORS['text']
             )
 
         self._render_scrollbar(w, h)
+
+        if self.prompt_text:
+            prompt_y = h - self.PADDING_Y - self.PROMPT_HEIGHT
+            self.canvas.create_text(
+                self.PADDING_X, prompt_y + 8, anchor="nw",
+                text=self.prompt_text,
+                font=self.FONT_MEDIUM, fill=self.COLORS['text']
+            )
 
     def _render_scrollbar(self, w, h):
         total = self.total_pages()
@@ -307,12 +296,6 @@ class ChoiceScreen(Screen):
             h = int(self.canvas['height'])
         return w, h
 
-    def _compute_font(self, h):
-        row_height = (h - 2 * self.PADDING_Y) / 4
-        size = int(row_height * 0.5)  # 0.5 稍小一点，留出行距
-        size = max(self.FONT_MIN, min(size, self.FONT_MAX))
-        return self.FONT_FAMILY, size
-
 
 class SettingAngleScreen(ChoiceScreen):
     name = "setting_angle"
@@ -322,9 +305,9 @@ class SettingAngleScreen(ChoiceScreen):
         self.parent_screen = "setting"
 
         self.items = [
-            ("Degree(D)", lambda: self.calculator.set_angle_unit("DEG")),
-            ("Radian(R)", lambda: self.calculator.set_angle_unit("RAD")),
-            ("Gradient(G)", lambda: self.calculator.set_angle_unit("GRA")),
+            ("angle_unit_deg", lambda: self.calculator.set_angle_unit("DEG")),
+            ("angle_unit_rad", lambda: self.calculator.set_angle_unit("RAD")),
+            ("angle_unit_gra", lambda: self.calculator.set_angle_unit("GRA")),
         ]
 
 
@@ -349,12 +332,29 @@ class SettingNumberFormatScreen(ChoiceScreen):
     def __init__(self, canvas: tk.Canvas, calculator):
         super().__init__(canvas, calculator)
         self.parent_screen = "setting"
+        self.pending_type = None
 
         self.items = [
             ("Fix", lambda: self.calculator.set_setting("number_format", "FIX")),
             ("Sci", lambda: self.calculator.set_setting("number_format", "SCI")),
             ("Norm", lambda: self.calculator.set_setting("number_format", "NORM"))
         ]
+
+    def select(self, num: int):
+        if self.pending_type is None:
+            if num == 1:
+                self.pending_type = "Fix"
+                self.prompt_text = self.calculator.translate("Fix_prompt")
+            elif num == 2:
+                self.pending_type = "Sci"
+                self.prompt_text = self.calculator.translate("Sci_prompt")
+            elif num == 3:
+                self.pending_type = "Norm"
+                self.prompt_text = self.calculator.translate("Norm_prompt")
+
+            self.calculator.screen_manager.render()
+        else:
+            pass
 
 
 class SettingEngineerSymbolScreen(ChoiceScreen):
@@ -485,18 +485,18 @@ class SettingScreen(ChoiceScreen):
         super().__init__(canvas, calculator)
 
         self.items = [
-            ("Input/Output", "setting_io"),
-            ("Angle Unit", "setting_angle"),
-            ("Number Format", "setting_number_format"),
-            ("Engineer Symbol", "setting_engineer_symbol"),
-            ("Fraction Result", "setting_fraction_result"),
-            ("Complex", "setting_complex"),
-            ("Statistics", "setting_statistics"),
-            ("Equation/Func", "setting_equation"),
-            ("Table", "setting_table"),
-            ("Decimal Mark", "setting_decimal_mark"),
-            ("Digit Separator", "setting_digit_separator"),
-            ("Language", "setting_language")
+            ("setting_io", "setting_io"),
+            ("setting_angle", "setting_angle"),
+            ("setting_number_format", "setting_number_format"),
+            ("setting_engine_symbol", "setting_engineer_symbol"),
+            ("setting_fraction_result", "setting_fraction_result"),
+            ("setting_complex", "setting_complex"),
+            ("setting_statistics", "setting_statistics"),
+            ("setting_equation", "setting_equation"),
+            ("setting_table", "setting_table"),
+            ("setting_decimal_mark", "setting_decimal_mark"),
+            ("setting_digit_separator", "setting_digit_separator"),
+            ("setting_language", "setting_language")
         ]
 
 
@@ -508,15 +508,16 @@ class ResetScreen(ChoiceScreen):
         self.title = "Reset?"
 
         self.items = [
-            ("Setup Data", "reset_setup_confirm"),
-            ("Memory", "reset_memory_confirm"),
-            ("Initialize All", "reset_all_confirm"),
+            ("reset_setup", "reset_setup_confirm"),
+            ("reset_memory", "reset_memory_confirm"),
+            ("reset_all", "reset_all_confirm"),
         ]
 
 
 class ResetConfirmScreen(Screen):
-    def __init__(self, canvas, target_name, reset_action, success_screen):
+    def __init__(self, canvas, calculator, target_name, reset_action, success_screen):
         self.canvas = canvas
+        self.calculator = calculator
         self.target_name = target_name
         self.reset_action = reset_action
         self.success_screen = success_screen
@@ -525,50 +526,49 @@ class ResetConfirmScreen(Screen):
         self.canvas.delete('all')
         w = int(self.canvas['width'])
 
-        # 顶部居中标题
+        tr = self.calculator.translate
+
         self.canvas.create_text(
-            w // 2, 15, text="Reset OK?", anchor='n',
-            font=('Courier New', 14), fill='black'
-        )
-        # 左对齐的目标内容
-        self.canvas.create_text(
-            10, 45, text=self.target_name, anchor='nw',
-            font=('Courier New', 14), fill='black'
-        )
-        # 底部提示
-        self.canvas.create_text(
-            10, 75, text="[=]     :Yes", anchor='nw',
-            font=('Courier New', 14), fill='black'
+            w // 2, 15, text=tr("reset_confirm"), anchor='n',
+            font=self.FONT_MEDIUM, fill='black'
         )
         self.canvas.create_text(
-            10, 100, text="[AC]    :Cancel", anchor='nw',
-            font=('Courier New', 14), fill='black'
+            10, 45, text=tr(self.target_name), anchor='nw',
+            font=self.FONT_MEDIUM, fill='black'
+        )
+        self.canvas.create_text(
+            10, 75, text=tr("eql_to_yes"), anchor='nw',
+            font=self.FONT_MEDIUM, fill='black'
+        )
+        self.canvas.create_text(
+            10, 100, text=tr("AC_to_cancel"), anchor='nw',
+            font=self.FONT_MEDIUM, fill='black'
         )
 
 
 class ResetSuccessScreen(Screen):
-    def __init__(self, canvas, target_name):
+    def __init__(self, canvas, calculator, target_name):
         self.canvas = canvas
+        self.calculator = calculator
         self.target_name = target_name
 
     def render(self):
         self.canvas.delete('all')
         w = int(self.canvas['width'])
 
-        # 顶部居中标题
+        tr = self.calculator.translate
+
         self.canvas.create_text(
-            w // 2, 15, text="Reset!", anchor='n',
-            font=('Courier New', 14), fill='black'
+            w // 2, 15, text=tr("reset_success"), anchor='n',
+            font=self.FONT_MEDIUM, fill='black'
         )
-        # 左对齐的目标内容
         self.canvas.create_text(
-            10, 45, text=self.target_name, anchor='nw',
-            font=('Courier New', 14), fill='black'
+            10, 45, text=tr(self.target_name), anchor='nw',
+            font=self.FONT_MEDIUM, fill='black'
         )
-        # 底部提示
         self.canvas.create_text(
-            10, 95, text="Press [AC] key", anchor='nw',
-            font=('Courier New', 14), fill='black'
+            10, 95, text=tr("press_ac"), anchor='nw',
+            font=self.FONT_MEDIUM, fill='black'
         )
 
 
@@ -598,17 +598,17 @@ class ScreenManager:
 
             "reset_menu": ResetScreen(canvas, calculator),
             "reset_setup_confirm": ResetConfirmScreen(
-                canvas, "Setup Data", calculator.settings.reset_setup_data, "reset_setup_success"
+                canvas, calculator, "reset_setup", calculator.settings.reset_setup_data, "reset_setup_success"
             ),
-            "reset_setup_success": ResetSuccessScreen(canvas, "Setup Data"),
+            "reset_setup_success": ResetSuccessScreen(canvas, calculator, "Setup Data"),
             "reset_memory_confirm": ResetConfirmScreen(
-                canvas, "Memory", calculator.settings.reset_memory, "reset_memory_success"
+                canvas, calculator, "reset_memory", calculator.settings.reset_memory, "reset_memory_success"
             ),
-            "reset_memory_success": ResetSuccessScreen(canvas, "Memory"),
+            "reset_memory_success": ResetSuccessScreen(canvas, calculator, "Memory"),
             "reset_all_confirm": ResetConfirmScreen(
-                canvas, "Initialize All", calculator.settings.reset_all, "reset_all_success"
+                canvas, calculator, "reset_all", calculator.settings.reset_all, "reset_all_success"
             ),
-            "reset_all_success": ResetSuccessScreen(canvas, "Initialize All"),
+            "reset_all_success": ResetSuccessScreen(canvas, calculator, "Initialize All"),
         }
 
     def get_current_screen(self) -> str:

@@ -1,0 +1,122 @@
+{
+  "EN": {
+    "setting_io": "Input/Output",
+    "setting_angle": "Angle Unit",
+    "setting_number_format": "Number Format",
+    "setting_engine_symbol": "Engineer Symbol",
+    "setting_fraction_result": "Fraction Result",
+    "setting_complex": "Complex",
+    "setting_statistics": "Statistics",
+    "setting_equation": "Equation/Func",
+    "setting_table": "Table",
+    "setting_decimal_mark": "Decimal Mark",
+    "setting_digit_separator": "Digit Separator",
+    "setting_language": "Language",
+
+    "MathI/MathO": "MathI/MathO",
+    "MathI/DecimalO": "MathI/DecimalO",
+    "LineI/LineO": "LineI/LineO",
+    "LineI/DecimalO": "LineI/DecimalO",
+
+    "angle_unit_deg": "Degree",
+    "angle_unit_rad": "Radian",
+    "angle_unit_gra": "Gradian",
+
+    "Fix": "Fix",
+    "Fix_prompt": "Fix: Select 0~9",
+    "Sci": "Sci",
+    "Sci_prompt": "Sci: Select 0~9",
+    "Norm": "Norm",
+    "Norm_prompt": "Norm: Select 1~2",
+
+    "engineer_title": "Engineer Symbol?",
+    "statistics_title": "Frequency?",
+    "equation_title": "Complex Result?",
+    "digit_separator_title": "Digit Separator?",
+    "On": "On",
+    "Off": "Off",
+
+    "mixed": "ab/c",
+    "improper": "d/c",
+
+    "rectangular": "a+bi",
+    "polar": "r∠θ",
+
+    "single": "f(x)",
+    "duel": "f(x), g(x)",
+
+    "Dot": "Dot",
+    "Comma": "Comma",
+
+    "reset_title": "Reset?",
+    "reset_setup": "Setup Data",
+    "reset_memory": "Memory",
+    "reset_all": "Initialize All",
+    "reset_confirm": "Reset Ok?",
+    "reset_success": "Reset!",
+    "eql_to_yes": "[=]     :Yes",
+    "AC_to_cancel": "[AC]    :Cancel",
+    "press_AC": "Press [AC] Key"
+  },
+
+
+  "CH": {
+    "setting_io": "输入/输出",
+    "setting_angle": "角度单位",
+    "setting_number_format": "显示格式",
+    "setting_engine_symbol": "工程符号",
+    "setting_fraction_result": "分数结果",
+    "setting_complex": "复数",
+    "setting_statistics": "统计",
+    "setting_equation": "方程/函数",
+    "setting_table": "表格",
+    "setting_decimal_mark": "小数点显示",
+    "setting_digit_separator": "数字分隔符",
+    "setting_language": "语言",
+
+    "MathI/MathO": "数学输入/数学输出",
+    "MathI/DecimalO": "数学输入/小数输出",
+    "LineI/LineO": "线性输入/线性输出",
+    "LineI/DecimalO": "线性输入/小数输出",
+
+    "angle_unit_deg": "度(D)",
+    "angle_unit_rad": "弧度(R)",
+    "angle_unit_gra": "百分度(G)",
+
+    "Fix": "位数(Fix)",
+    "Fix_prompt": "位数: 选择 0~9",
+    "Sci": "科学(Sci)",
+    "Sci_prompt": "科学: 选择 0~9",
+    "Norm": "常规(Norm)",
+    "Norm_prompt": "常规: 选择 1~2",
+
+    "engineer_title": "工程符号?",
+    "statistics_title": "频数?",
+    "equation_title": "复数结果?",
+    "digit_separator_title": "数字分隔符?",
+    "On": "开",
+    "Off": "关",
+
+    "mixed": "带分数",
+    "improper": "假分数",
+
+    "rectangular": "a+bi",
+    "polar": "r∠θ",
+
+    "single": "f(x)",
+    "duel": "f(x), g(x)",
+
+    "Dot": "句点",
+    "Comma": "逗号",
+
+    "reset_title": "复位?",
+    "reset_setup": "设置数据",
+    "reset_memory": "存储器",
+    "reset_all": "全部初始化",
+    "reset_confirm": "复位?",
+    "reset_success": "复位!",
+    "eql_to_yes": "[=]     : 是",
+    "AC_to_cancel": "[AC]    : 取消",
+    "press_AC": "按 [AC] 键"
+  }
+}

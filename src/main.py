@@ -33,6 +33,8 @@ class Calculator:
         self._pending_sto = False
         self.root_screen = "formula"
 
+        self._bind_keyboard()
+
     def deal_input(self, key_name: str):
         # 关机状态：只响应 POWER
         if not self.settings.running:
@@ -155,9 +157,31 @@ class Calculator:
             self.screen_manager.switch_current_screen("formula")
 
     def _deal_choice_input(self, key_name: str):
-        # 获取当前的 ChoiceScreen 实例
         screen_name = self.screen_manager.get_current_screen()
         screen = self.screen_manager.screens[screen_name]
+
+        if getattr(screen, "pending_type", None) is not None:
+            if key_name in "0123456789":
+                val = int(key_name)
+                ptype = screen.pending_type
+
+                # 校验范围
+                if ptype in ("Fix", "Sci") and 0 <= val <= 9:
+                    self.settings.save_settings("number_format", f"{ptype} {val}")
+                    screen.pending_type = None
+                    screen.prompt_text = ""
+                    self.screen_manager.switch_current_screen("formula")
+                elif ptype == "Norm" and 1 <= val <= 2:
+                    self.settings.save_settings("number_format", f"{ptype} {val}")
+                    screen.pending_type = None
+                    screen.prompt_text = ""
+                    self.screen_manager.switch_current_screen("formula")
+            elif key_name == "AC":
+                # 取消状态，回到初始
+                screen.pending_type = None
+                screen.prompt_text = ""
+                self.screen_manager.render()
+            return
 
         if key_name == "UP":
             screen.page_up()
@@ -172,12 +196,9 @@ class Calculator:
                 self.screen_manager.switch_current_screen(screen.parent_screen)
 
         elif key_name in ("1", "2", "3", "4"):
-            # 将字符转为数字，传给 select 处理
-            # select 内部如果触发了切屏，内部的 switch_current_screen 会自动 render
             screen.select(int(key_name))
 
         elif key_name == "AC":
-            # 通用的退出逻辑：在设置菜单中按 AC，默认退回公式屏
             self.screen_manager.switch_current_screen("formula")
 
     def _deal_confirm_input(self, key_name: str):
@@ -254,6 +275,9 @@ class Calculator:
         self.settings.save_settings(key, value)
         self.screen_manager.switch_current_screen(self.root_screen)
 
+    def translate(self, key: str) -> str:
+        return self.settings.translate(key)
+
     def restart(self):
         self._turn_off_shift_and_alpha()
         print("restart")
@@ -261,6 +285,52 @@ class Calculator:
     def _turn_off_shift_and_alpha(self):
         self.ui.update_flag("S", self.settings.turn_off_shift_mode())
         self.ui.update_flag("A", self.settings.turn_off_alpha_mode())
+
+    def _bind_keyboard(self):
+        self.root.focus_set()
+        self.root.bind("<Key>", self._on_keyboard_event)
+
+    def _on_keyboard_event(self, event):
+        special_map = {
+            "Return": "=",
+            "KP_Enter": "=",  # 小键盘回车
+            "BackSpace": "DEL",
+            "Escape": "AC",
+            "Up": "UP",
+            "Down": "DOWN",
+            "Left": "LEFT",
+            "Right": "RIGHT",
+            "Shift_L": "SHIFT",
+            "Shift_R": "SHIFT",
+            "Control_L": "ALPHA",
+            "Control_R": "ALPHA",
+        }
+
+        char_map = {
+            "+": "+",
+            "-": "-",
+            "*": "*",
+            "/": "/",
+            "(": "(",
+            ")": ")",
+            ".": ".",
+            "0": "0", "1": "1", "2": "2", "3": "3", "4": "4",
+            "5": "5", "6": "6", "7": "7", "8": "8", "9": "9",
+            "x": "X", "X": "X",
+            "e": "EXP",
+        }
+
+        calc_key = None
+
+        if event.keysym in special_map:
+            calc_key = special_map[event.keysym]
+        elif event.char in char_map:
+            calc_key = char_map[event.char]
+
+        if calc_key:
+            self.deal_input(calc_key)
+
+            return "break"
 
     def run(self):
         self.root.mainloop()

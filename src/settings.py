@@ -74,6 +74,9 @@ class Settings:
         with open(DATA_DIR / "variables.json", "r", encoding="utf-8") as v:
             self.variables: dict = json.load(v)
 
+        with open(DATA_DIR / "locales.json", "r", encoding="utf-8") as l:
+            self.locales: dict = json.load(l)
+
     def set_variable(self, expression: str, var_name: str):
         self.variables[var_name] = expression
 
@@ -106,8 +109,12 @@ class Settings:
         self.alpha_mode = False
         return False
 
+    def translate(self, key: str) -> str:
+        language = self.settings.get("language", "EN")
+        language_dict = self.locales[language]
+        return language_dict.get(key, key)
+
     def reset_setup_data(self):
-        """恢复出厂设置参数"""
         defaults = {
             "module": "CALCULATE",
             "angle_unit": "DEG",
