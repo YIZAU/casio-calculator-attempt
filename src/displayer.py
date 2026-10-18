@@ -475,6 +475,7 @@ class SettingLanguageScreen(ChoiceScreen):
         self.items = [
             ("English", lambda: self.calculator.set_setting("language", "EN")),
             ("中文", lambda: self.calculator.set_setting("language", "CH")),
+            ("日本語", lambda: self.calculator.set_setting("language", "JP")),
         ]
 
 

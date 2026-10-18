@@ -118,5 +118,64 @@
     "eql_to_yes": "[=]     : 是",
     "AC_to_cancel": "[AC]    : 取消",
     "press_AC": "按 [AC] 键"
+  },
+
+  "JP": {
+    "setting_io": "入出力",
+    "setting_angle": "角度単位",
+    "setting_number_format": "表示形式",
+    "setting_engine_symbol": "工学記号",
+    "setting_fraction_result": "分数表示",
+    "setting_complex": "複素数",
+    "setting_statistics": "統計",
+    "setting_equation": "方程式/関数",
+    "setting_table": "数表",
+    "setting_decimal_mark": "小数点記号",
+    "setting_digit_separator": "桁区切り",
+    "setting_language": "言語",
+
+    "MathI/MathO": "数学I/数学O",
+    "MathI/DecimalO": "数学I/小数O",
+    "LineI/LineO": "ラインI/ラインO",
+    "LineI/DecimalO": "ラインI/小数O",
+
+    "angle_unit_deg": "度(D)",
+    "angle_unit_rad": "弧度(R)",
+    "angle_unit_gra": "グラード(G)",
+
+    "Fix": "桁数(Fix)",
+    "Fix_prompt": "桁数: 0~9を選択",
+    "Sci": "科学(Sci)",
+    "Sci_prompt": "科学: 0~9を選択",
+    "Norm": "標準(Norm)",
+    "Norm_prompt": "標準: 1~2を選択",
+
+    "engineer_title": "工学記号?",
+    "statistics_title": "度数?",
+    "equation_title": "複素数解?",
+    "digit_separator_title": "桁区切り?",
+    "On": "オン",
+    "Off": "オフ",
+
+    "mixed": "帯分数",
+    "improper": "仮分数",
+
+    "rectangular": "a+bi",
+    "polar": "r∠θ",
+
+    "single": "f(x)",
+    "duel": "f(x), g(x)",
+
+    "Dot": "ピリオド",
+    "Comma": "カンマ",
+
+    "reset_title": "リセット?",
+    "reset_setup": "設定データ",
+    "reset_memory": "メモリー",
+    "reset_all": "すべて初期化",
+    "reset_confirm": "リセットしますか?",
+    "reset_success": "リセット完了!",
+    "eql_to_yes": "[=]     :はい",
+    "AC_to_cancel": "[AC]    :キャンセル"
   }
 }
