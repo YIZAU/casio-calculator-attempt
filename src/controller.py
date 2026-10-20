@@ -3,7 +3,6 @@ class FormulaNode:
     TYPE_VARIABLE = "variable"
     TYPE_SIGN = "sign"
     TYPE_FUNCTION = "function"
-    TYPE_FRACTION = "fraction"
 
     TYPE_POWER_START = "power_start"
     TYPE_POWER_END = "power_end"
@@ -16,18 +15,16 @@ class FormulaNode:
     TYPE_LOG_START = "log_start"
     TYPE_LOG_END = "log_end"
 
+    TYPE_FRACTION_START = "fraction_start"
+    TYPE_FRACTION_LINE = "fraction_line"
+    TYPE_FRACTION_END = "fraction_end"
+
     def __init__(self, text: str, node_type: str):
         self.text = text
         self.node_type = node_type
 
     def to_str(self) -> str:
         return self.text
-
-    def is_number(self) -> bool:
-        return self.node_type == self.TYPE_NUMBER
-
-    def is_structure_marker(self) -> bool:
-        return self.node_type in [self.TYPE_POWER_START, self.TYPE_POWER_END]
 
 
 class FormulaList:
@@ -51,6 +48,8 @@ class FormulaList:
                 return
             elif self._delete_root():
                 return
+            elif self._delete_fraction():
+                return
             elif self._delete_logarithm():
                 return
 
@@ -65,6 +64,8 @@ class FormulaList:
             self.index -= 1
             del self.nodes[self.index]
 
+    # ============ number / variable / sign / func ==============
+
     def add_number(self, num: str):
         self.insert_at_index(FormulaNode(num, FormulaNode.TYPE_NUMBER))
 
@@ -73,6 +74,12 @@ class FormulaList:
 
     def add_sign(self, op: str):
         self.insert_at_index(FormulaNode(op, FormulaNode.TYPE_SIGN))
+
+    def add_function(self, func_name: str):
+        self.insert_at_index(FormulaNode(func_name, FormulaNode.TYPE_FUNCTION))
+        self.insert_at_index(FormulaNode('(', FormulaNode.TYPE_SIGN))
+
+    # ============ power ===============
 
     def add_power(self, base: str = None, exp: str = None):
         # 要保证配套的 PowerStart 和 PowerEnd 同时存在
@@ -93,67 +100,13 @@ class FormulaList:
         self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_POWER_END))
         self.index -= 1  # 未指定指数时，指针回到指数上
 
-    def add_root(self, degree: int = None, sqrt: bool = True):
-        if sqrt:
-            self.insert_at_index(FormulaNode("root(", FormulaNode.TYPE_ROOT_START))
-            self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
-            self.index -= 1
-        else:
-            if degree:
-                self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
-                # degree 的值: 2 | 3 | None
-                self.insert_at_index(FormulaNode(str(degree), FormulaNode.TYPE_NUMBER))
-                self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
-                self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
-                self.index -= 1
-            else:
-                if self.index > 0 and self.nodes[self.index - 1].node_type in (FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
-                    deg_start = self._find_continuous_value_before_cursor()
-                    now_index = self.index
-
-                    self.index = deg_start
-                    self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
-                    self.index = now_index + 1
-                    self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
-                    self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
-                    self.index -= 1
-                else:
-                    self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
-                    self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
-                    self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
-                    self.index -= 2
-
-    def add_logarithm(self):
-        self.insert_at_index(FormulaNode("base(", FormulaNode.TYPE_LOG_BASE))
-        self.insert_at_index(FormulaNode(")log(", FormulaNode.TYPE_LOG_START))
-        self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_LOG_END))
-        self.index -= 2
-
-    def add_function(self, func_name: str):
-        self.insert_at_index(FormulaNode(func_name, FormulaNode.TYPE_FUNCTION))
-        self.insert_at_index(FormulaNode('(', FormulaNode.TYPE_SIGN))
-
-    def to_str(self) -> str:
-        return "".join(node.to_str() for node in self.nodes)
-
-    def move_right(self):
-        if self.index < len(self.nodes):
-            self.index += 1
-        elif self.index == len(self.nodes):
-            self.index = 0
-
-    def move_left(self):
-        if self.index > 0:
-            self.index -= 1
-        elif self.index == 0:
-            self.index = len(self.nodes)
-
     def _delete_power(self) -> bool:
         # ===== 智能删除 幂 ======
 
         # 指针前是 PowerEnd
         if self.nodes[self.index - 1].node_type == FormulaNode.TYPE_POWER_END:
             self.index -= 1
+            # 跳转到最内层幂结构的 PowerEnd 之前
             while self.nodes[self.index].node_type == FormulaNode.TYPE_POWER_END:
                 self.index -= 1
             # 该级指数为空，删去该级幂结构
@@ -163,7 +116,7 @@ class FormulaList:
                 return True
             # 该级指数非空，找到并删除第一个指数 Node
             else:
-                del self.nodes[self.index]
+                self.delete()  # 保证安全
                 return True
 
         # 指针前是 PowerStart
@@ -197,6 +150,38 @@ class FormulaList:
                     return i
             i += 1
 
+    # ============ root ==============
+
+    def add_root(self, degree: int = None, sqrt: bool = True):
+        if sqrt:
+            self.insert_at_index(FormulaNode("root(", FormulaNode.TYPE_ROOT_START))
+            self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+            self.index -= 1
+        else:
+            if degree:
+                self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
+                # degree 的值: 2 | 3 | None
+                self.insert_at_index(FormulaNode(str(degree), FormulaNode.TYPE_NUMBER))
+                self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
+                self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+                self.index -= 1
+            else:
+                if self.index > 0 and self.nodes[self.index - 1].node_type in (FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
+                    deg_start = self._find_continuous_value_before_cursor()
+                    now_index = self.index
+
+                    self.index = deg_start
+                    self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
+                    self.index = now_index + 1
+                    self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
+                    self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+                    self.index -= 1
+                else:
+                    self.insert_at_index(FormulaNode("deg(", FormulaNode.TYPE_ROOT_DEGREE))
+                    self.insert_at_index(FormulaNode(")root(", FormulaNode.TYPE_ROOT_START))
+                    self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_ROOT_END))
+                    self.index -= 2
+
     def _delete_root(self) -> bool:
         # ===== 智能删除 根式 ======
 
@@ -212,7 +197,8 @@ class FormulaList:
                 del self.nodes[self.index]  # 删除 RootDegree
             # 根系数非空，删除根系数最左侧 Node
             else:
-                del self.nodes[self.index]
+                self.index += 1
+                self.delete()     # 安全删除
             return True
 
         # 指针前是 RootStart
@@ -242,8 +228,8 @@ class FormulaList:
                     self.index -= 1  # 索引复位
             # 根式非空，删除根系数最右侧 Node
             else:
-                self.index -= 2
-                del self.nodes[self.index]
+                self.index -= 1
+                self.delete()     # 安全删除
             return True
         return False
 
@@ -280,6 +266,14 @@ class FormulaList:
             i -= 1
         return i + 1
 
+    # ============ logarithm =============
+
+    def add_logarithm(self):
+        self.insert_at_index(FormulaNode("base(", FormulaNode.TYPE_LOG_BASE))
+        self.insert_at_index(FormulaNode(")log(", FormulaNode.TYPE_LOG_START))
+        self.insert_at_index(FormulaNode(')', FormulaNode.TYPE_LOG_END))
+        self.index -= 2
+
     def _delete_logarithm(self) -> bool:
         # ===== 智能删除 对数 ======
 
@@ -301,8 +295,8 @@ class FormulaList:
                 self.index -= 1
             # 底数与真数非全为空，底数存在，删除底数最右侧 Node
             else:
-                self.index -= 2
-                del self.nodes[self.index]
+                self.index -= 1
+                self.delete()     # 安全删除
             return True
 
         # 指针前是 LogEnd
@@ -316,8 +310,8 @@ class FormulaList:
                 self.index -= 1
             # 底数与真数非全为空，真数存在，删除真数最右侧 Node
             else:
-                self.index -= 2
-                del self.nodes[self.index]
+                self.index -= 1
+                self.delete()     # 安全删除
             return True
         return False
 
@@ -336,6 +330,113 @@ class FormulaList:
                 else:
                     return j, i
             i += 1
+
+    # ============ fraction ==============
+
+    def add_fraction(self):
+        if self.index > 0 and self.nodes[self.index - 1].node_type in (FormulaNode.TYPE_NUMBER, FormulaNode.TYPE_VARIABLE):
+            num_index = self._find_continuous_value_before_cursor()
+            now_index = self.index
+            self.index = num_index
+            self.insert_at_index(FormulaNode("(", FormulaNode.TYPE_FRACTION_START))
+            self.index = now_index + 1
+            self.insert_at_index(FormulaNode(")/(", FormulaNode.TYPE_FRACTION_LINE))
+            self.insert_at_index(FormulaNode(")", FormulaNode.TYPE_FRACTION_END))
+            self.index -= 1
+        else:
+            self.insert_at_index(FormulaNode("(", FormulaNode.TYPE_FRACTION_START))
+            self.insert_at_index(FormulaNode(")/(", FormulaNode.TYPE_FRACTION_LINE))
+            self.insert_at_index(FormulaNode(")", FormulaNode.TYPE_FRACTION_END))
+            self.index -= 2
+
+    def _delete_fraction(self) -> bool:
+        # ===== 智能删除 分数 ======
+
+        # 指针前是 FractionStart
+        if self.nodes[self.index - 1].node_type == FormulaNode.TYPE_FRACTION_START:
+            # 分子为空，取消整个分数结构，放出分母
+            if self.nodes[self.index].node_type == FormulaNode.TYPE_FRACTION_LINE:
+                frac_end = self._find_frac_end_with_frac_line(self.index)
+                del self.nodes[frac_end]   # 删除 FractionEnd
+                del self.nodes[self.index]   # 删除 FractionLine
+                self.index -= 1
+                del self.nodes[self.index]   # 删除 FractionStart
+            # 分子非空，删除分子最左侧 Node
+            else:
+                self.index += 1
+                self.delete()      # 安全删除
+            return True
+
+        # 指针前是 FractionLine, 取消整个分数结构，放出分子分母
+        elif self.nodes[self.index - 1].node_type == FormulaNode.TYPE_FRACTION_LINE:
+            frac_start = self._find_frac_start_with_frac_line(self.index - 1)
+            frac_end = self._find_frac_end_with_frac_line(self.index - 1)
+            del self.nodes[frac_end]   # 删除 FractionEnd
+            self.index -= 1
+            del self.nodes[self.index]   # 删除 FractionLine
+            del self.nodes[frac_start]   # 删除 FractionStart
+            self.index -= 1   # 索引复位
+            return True
+
+        # 指针前是 FractionEnd
+        elif self.nodes[self.index - 1].node_type == FormulaNode.TYPE_FRACTION_END:
+            # 分母为空，取消整个分数结构，放出分子
+            if self.nodes[self.index - 2].node_type == FormulaNode.TYPE_FRACTION_LINE:
+                frac_start = self._find_frac_start_with_frac_line(self.index - 2)
+                self.index -= 2
+                del self.nodes[self.index]   # 删除 FractionLine
+                del self.nodes[self.index]   # 删除 FractionEnd
+                del self.nodes[frac_start]   # 删除 FractionStart
+                self.index -= 1  # 索引复位
+            # 分母非空，删除分母最右侧 Node
+            else:
+                self.index -= 1
+                self.delete()      # 安全删除
+            return True
+        return False
+
+    def _find_frac_end_with_frac_line(self, frac_line) -> int:
+        i = frac_line
+        depth = 0
+        while i < len(self.nodes):
+            i += 1
+            if self.nodes[i].node_type == FormulaNode.TYPE_FRACTION_LINE:
+                depth += 1
+            elif self.nodes[i].node_type == FormulaNode.TYPE_FRACTION_END:
+                if depth > 0:
+                    depth -= 1
+                else:
+                    return i
+
+    def _find_frac_start_with_frac_line(self, frac_line) -> int:
+        i = frac_line - 1
+        depth = 0
+        while i >= 0:
+            if self.nodes[i].node_type == FormulaNode.TYPE_FRACTION_LINE:
+                depth += 1
+            elif self.nodes[i].node_type == FormulaNode.TYPE_FRACTION_START:
+                if depth > 0:
+                    depth -= 1
+                else:
+                    return i
+            i -= 1
+
+    # ====================================
+
+    def to_str(self) -> str:
+        return "".join(node.to_str() for node in self.nodes)
+
+    def move_right(self):
+        if self.index < len(self.nodes):
+            self.index += 1
+        elif self.index == len(self.nodes):
+            self.index = 0
+
+    def move_left(self):
+        if self.index > 0:
+            self.index -= 1
+        elif self.index == 0:
+            self.index = len(self.nodes)
 
     def refresh(self):
         self.calculator.render()
@@ -410,6 +511,7 @@ class Controller:
             ("normal", "LEFT"): (self.move_cursor, ("LEFT",)),
             ("normal", "RIGHT"): (self.move_cursor, ("RIGHT",)),
             ("normal", "ANS"): (self.formulas.add_variable, ("Ans",)),
+            ("normal", "FRAC"): (self.formulas.add_fraction, ()),
 
             ("shift", "EXP"): (self.formulas.add_variable, ("π",)),
             ("shift", "SIN"): (self.formulas.add_function, ("arcsin",)),

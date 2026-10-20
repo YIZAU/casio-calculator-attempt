@@ -1,4 +1,31 @@
 import tkinter as tk
+from controller import FormulaNode, FormulaList
+
+
+class DrawElement:
+    FONT_FAMILY = "Consolas"
+    FONT_SIZE_LARGE = 22
+    FONT_SIZE_MEDIUM = 16
+    FONT_SIZE_SMALL = 14
+
+    FONT_LARGE = (FONT_FAMILY, FONT_SIZE_LARGE)
+    FONT_MEDIUM = (FONT_FAMILY, FONT_SIZE_MEDIUM)
+    FONT_SMALL = (FONT_FAMILY, FONT_SIZE_SMALL)
+    FONT_BOLD = (FONT_FAMILY, FONT_SIZE_MEDIUM, "bold")
+
+    COLOR_BG = '#d5e3d4'
+    COLOR_EXPR = 'black'
+    COLOR_RESULT = '#333333'
+    COLOR_CURSOR = '#0055aa'
+
+
+class FormalaMap:
+    pass
+
+
+class Layout:
+    def __init__(self, calculator):
+        self.calculator = calculator
 
 
 class Screen:

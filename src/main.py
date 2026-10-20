@@ -4,7 +4,7 @@ from settings import Settings
 from ui import UI
 from controller import Controller, FormulaList
 from engine import Engine
-from displayer import ScreenManager
+from displayer import ScreenManager, Layout
 
 
 class Calculator:
@@ -26,6 +26,7 @@ class Calculator:
         self.ui = UI(self)
         self.ui.initialize()
         self.formulas = FormulaList(self)
+        self.layout = Layout(self)
         self.screen_manager = ScreenManager(self, self.ui.canvas)
         self.controller = Controller(self, self.formulas)
         self.engine = Engine(self)
